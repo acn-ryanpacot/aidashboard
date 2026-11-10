@@ -77,6 +77,7 @@ JARVIS_WAKE_ENGINE=none JARVIS_STT_ENGINE=none JARVIS_TTS_ENGINE=none JARVIS_VAD
 | Symptom                                    | Fix                                                                                   |
 | ------------------------------------------ | ------------------------------------------------------------------------------------- |
 | `pnpm` is not recognized                   | `npm install -g pnpm@10.34.9`, then open a new terminal                               |
+| "An Application Control policy has blocked this file" | Windows Smart App Control blocks uv's Python; see [Turn off Smart App Control](guides/personal-pc-setup.md#20-turn-off-smart-app-control) |
 | "Core offline" on the engage screen        | Start `pnpm dev:core`; check that port 8765 is free                                    |
 | "I can't reach my language model"          | Start Ollama (`ollama serve`) and pull the configured model                           |
 | Wake word never triggers                   | Lower `JARVIS_WAKE_THRESHOLD` (e.g. 0.35); check the Systems widget shows *Microphone: Live* |

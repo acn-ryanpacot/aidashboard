@@ -49,6 +49,34 @@ On the PC: `git clone https://github.com/<you>/jarvis-os.git C:\dev\jarvis-os`.
 
 ## 2. Install the toolchain
 
+### 2.0 Turn off Smart App Control
+
+Windows 11's **Smart App Control** blocks unsigned programs that Microsoft hasn't seen before. A development setup runs many of them:
+
+- the Python that uv downloads;
+- the launchers uv creates, such as `jarvis-doctor.exe`;
+- the build programs Rust compiles while building the app.
+
+If Smart App Control is on, `uv run …` fails with *"Failed to query Python interpreter … An Application Control policy has blocked this file"*.
+
+**Check** its state in PowerShell:
+
+```powershell
+(Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy').VerifiedAndReputablePolicyState
+```
+
+- `0` means it's off, so there's nothing to do.
+- `1` means it's on.
+- `2` means evaluation mode, which Windows can switch to on later.
+
+To turn it off, open **Windows Security**, go to **App & browser control → Smart App Control settings**, and choose **Off**. Microsoft Defender antivirus keeps protecting the PC.
+
+!!! warning
+    On many Windows 11 builds you can turn Smart App Control back on only by resetting Windows. That is a fair trade for a development PC, but decide before you click.
+
+!!! note "Work or school PCs"
+    If the PC is managed by an organisation, the same message comes from its *App Control for Business* (WDAC) or AppLocker policy instead. You can't change that policy yourself; ask IT to allow the folders listed above.
+
 ### 2.1 NVIDIA driver
 
 Install the latest **Game Ready** or **Studio** driver, either from <https://www.nvidia.com/Download/index.aspx> or through the **NVIDIA App**, then reboot.
@@ -321,6 +349,7 @@ faster-whisper uses CTranslate2, which needs NVIDIA's cuBLAS and cuDNN 9 librari
 
 | Symptom | Fix |
 | --- | --- |
+| *"Failed to query Python interpreter … An Application Control policy has blocked this file"* | Smart App Control is on. Turn it off (step 2.0), then rerun `uv sync` from step 5 |
 | `jarvis-doctor` ✗ **Ollama unreachable** | Start Ollama from the Start menu; check `ollama list` |
 | ✗ **LLM model missing** | `ollama pull <model>`, or pick an installed one in **Settings → Brain** |
 | PyTorch says `False` / `+cpu` | Rerun step 5 with `--extra cu128`; update the driver and reboot |
