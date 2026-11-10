@@ -52,6 +52,10 @@ mod core_service {
     use std::sync::Mutex;
     use std::time::Duration;
 
+    // `App::path()` comes from the `Manager` trait; the crate-level import
+    // doesn't reach into this module.
+    use tauri::Manager;
+
     const CORE_ADDR: &str = "127.0.0.1:8765";
 
     /// The core process we started (if any), stopped on exit.
