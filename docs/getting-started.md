@@ -5,7 +5,7 @@
 | Tool                            | Why                         | Install                                                   |
 | ------------------------------- | --------------------------- | --------------------------------------------------------- |
 | Node.js 22+                     | UI build tooling            | <https://nodejs.org>                                      |
-| pnpm                            | JS package manager          | `corepack enable` (ships with Node)                       |
+| pnpm                            | JS package manager          | `npm install -g pnpm@10.34.9` (see below)                 |
 | uv                              | Python + package manager    | `winget install astral-sh.uv` or see docs.astral.sh/uv    |
 | Ollama                          | Runs the local LLM          | <https://ollama.com/download>                             |
 | Rust (optional)                 | Native Tauri window         | <https://rustup.rs>, plus the MSVC build tools on Windows |
@@ -13,6 +13,18 @@
 
 !!! note "Python version"
     `services/core/.python-version` pins **Python 3.12**. uv downloads it automatically, and you don't need a system Python. The speech libraries (PyTorch, CTranslate2, ONNX Runtime) publish wheels for 3.12 first.
+
+!!! warning "Install pnpm before step 2"
+    Node doesn't include pnpm. After installing Node, open a **new** terminal and run:
+
+    ```bash
+    npm install -g pnpm@10.34.9
+    pnpm --version
+    ```
+
+    This installs into your user profile (`%APPDATA%\npm` on Windows), so you don't need Administrator rights. If `pnpm` is still "not recognized", close the terminal (and VS Code, if you use its terminal) and open a new one so it picks up the updated `PATH`.
+
+    `corepack enable` also works, but on Windows it needs an Administrator terminal, and Node 25+ no longer includes corepack.
 
 ## 2. Install the project
 
@@ -64,6 +76,7 @@ JARVIS_WAKE_ENGINE=none JARVIS_STT_ENGINE=none JARVIS_TTS_ENGINE=none JARVIS_VAD
 
 | Symptom                                    | Fix                                                                                   |
 | ------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `pnpm` is not recognized                   | `npm install -g pnpm@10.34.9`, then open a new terminal                               |
 | "Core offline" on the engage screen        | Start `pnpm dev:core`; check that port 8765 is free                                    |
 | "I can't reach my language model"          | Start Ollama (`ollama serve`) and pull the configured model                           |
 | Wake word never triggers                   | Lower `JARVIS_WAKE_THRESHOLD` (e.g. 0.35); check the Systems widget shows *Microphone: Live* |

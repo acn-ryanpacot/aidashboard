@@ -89,13 +89,13 @@ winget install --id eSpeak-NG.eSpeak-NG -e      # better pronunciation of rare w
 winget install --id Docker.DockerDesktop -e     # only if you want private web search (SearXNG)
 ```
 
-**Close every terminal and open a new one** so the new `PATH` takes effect. Then enable pnpm, as **Administrator**:
+**Close every terminal and open a new one** so the new `PATH` takes effect. Then install pnpm (a normal terminal is fine; you don't need Administrator):
 
 ```powershell
-corepack enable
+npm install -g pnpm@10.34.9
 ```
 
-If that fails, run `npm install -g pnpm@10` instead.
+If `pnpm` is still "not recognized" afterwards, close every terminal again and open a new one. (`corepack enable` is an alternative, but it needs an Administrator terminal, and Node 25+ no longer includes corepack.)
 
 **Check:** each of these prints a version:
 
