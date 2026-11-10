@@ -15,7 +15,7 @@ The layout is saved to the core service (`/api/ui-preferences/layout`), with a l
 | Widget | What it shows | Needs |
 | --- | --- | --- |
 | Chronometer | Time, date, greeting, **Brief me** button | — |
-| Weather | Current conditions, high/low | Home location (Settings → Brain) |
+| Weather | Current conditions, high/low | Home location (Settings → Brain, then **Save**) |
 | Schedule | Today's and tomorrow's events | A calendar ICS address (Settings → Briefing & feeds) |
 | Conversation | The current transcript | — |
 | Tasks | Open tasks and upcoming reminders | — |

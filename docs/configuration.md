@@ -5,6 +5,9 @@
 !!! tip "Live settings"
     Values marked **live** can also be changed in the dashboard's **Settings** screen, which applies them
     immediately and stores them as overrides. `.env` provides the defaults that **Defaults** resets to.
+    Changes take effect only when you press **Save** (bottom right of the drawer), **Ctrl+S**, or
+    **Enter** in a text field. If you close the drawer with unsaved changes, it asks whether to save or
+    discard them.
 
 Settings are read from environment variables prefixed with `JARVIS_`, or from `services/core/.env` (start from `.env.example`). They are validated at startup by `jarvis_core.config.Settings`.
 

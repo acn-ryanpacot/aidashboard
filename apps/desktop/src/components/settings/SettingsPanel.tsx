@@ -1,5 +1,13 @@
 import { RotateCcw } from 'lucide-react';
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import {
   ApiError,
@@ -106,6 +114,8 @@ export function SettingsPanel() {
   const [models, setModels] = useState<ModelsResponse | null>(null);
   const [status, setStatus] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Set when the user tries to close with unsaved edits. */
+  const [confirmingClose, setConfirmingClose] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -120,6 +130,7 @@ export function SettingsPanel() {
       setVoices(voiceList);
       setModels(modelList);
       setStatus(null);
+      setConfirmingClose(false);
     } catch (error) {
       setStatus({ kind: 'error', text: `Couldn't load settings: ${String(error)}` });
     }
@@ -134,17 +145,65 @@ export function SettingsPanel() {
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((d) => (d ? { ...d, [key]: value } : d));
 
-  const save = async () => {
+  /** Send the changed fields; resolves to whether the save succeeded. */
+  const save = async (): Promise<boolean> => {
+    if (!dirty) return true;
     setBusy(true);
     try {
       const result = await coreApi.updateSettings(patch);
       setSaved(result.values);
       setDraft({ ...result.values });
       setStatus({ kind: 'ok', text: 'Saved — changes are live.' });
+      return true;
     } catch (error) {
       setStatus({ kind: 'error', text: error instanceof ApiError ? error.message : String(error) });
+      return false;
     } finally {
       setBusy(false);
+    }
+  };
+
+  // Esc, the backdrop and × all come through here: never drop edits silently.
+  const requestClose = () => {
+    if (dirty) setConfirmingClose(true);
+    else close();
+  };
+
+  const saveAndClose = async () => {
+    if (await save()) close();
+  };
+
+  const discardAndClose = () => {
+    setConfirmingClose(false);
+    close(); // the draft is reloaded from the core next time the drawer opens
+  };
+
+  // Only ask while there is still something to lose.
+  const askToSave = confirmingClose && dirty;
+
+  // Ctrl/⌘+S saves while the drawer is open.
+  const saveRef = useRef(save);
+  useEffect(() => {
+    saveRef.current = save;
+  });
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        void saveRef.current();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  /** Enter in a single-line field saves (textareas keep Enter for new lines). */
+  const onFieldKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (event.key === 'Enter' && target instanceof HTMLInputElement && dirty && !busy) {
+      event.preventDefault();
+      void save();
     }
   };
 
@@ -160,16 +219,47 @@ export function SettingsPanel() {
     }
   };
 
-  const footer = (
+  const footer = askToSave ? (
+    <div className="flex items-center gap-3">
+      <p className="flex-1 text-[12px] text-arc-200" role="alert">
+        Save your changes before closing?
+      </p>
+      <button
+        type="button"
+        onClick={discardAndClose}
+        disabled={busy}
+        className="rounded-lg px-3 py-2 text-[12px] text-white/60 transition hover:bg-white/5 hover:text-white/90"
+      >
+        Discard
+      </button>
+      <button
+        type="button"
+        onClick={() => void saveAndClose()}
+        disabled={busy}
+        autoFocus
+        className="rounded-lg bg-arc-400/90 px-4 py-2 text-[12px] font-medium tracking-wide text-void transition hover:bg-arc-300"
+      >
+        Save &amp; close
+      </button>
+    </div>
+  ) : (
     <div className="flex items-center gap-3">
       <p
         className={cn(
           'flex-1 text-[12px]',
-          status?.kind === 'error' ? 'text-signal-red/90' : 'text-white/45',
+          status?.kind === 'error'
+            ? 'text-signal-red/90'
+            : dirty
+              ? 'text-arc-200'
+              : 'text-white/45',
         )}
         role="status"
       >
-        {status?.text ?? (dirty ? 'Unsaved changes' : 'All changes saved')}
+        {status?.kind === 'error'
+          ? status.text
+          : dirty
+            ? 'Unsaved changes — press Save (Ctrl+S)'
+            : (status?.text ?? 'All changes saved')}
       </p>
       <button
         type="button"
@@ -194,7 +284,7 @@ export function SettingsPanel() {
   return (
     <Modal
       open={open}
-      onClose={close}
+      onClose={requestClose}
       title="Settings"
       variant="drawer"
       footer={draft ? footer : undefined}
@@ -202,7 +292,7 @@ export function SettingsPanel() {
       {!draft || !defaults ? (
         <p className="text-[13px] text-white/40">{status?.text ?? 'Loading…'}</p>
       ) : (
-        <>
+        <div onKeyDown={onFieldKeyDown}>
           <Section title="Persona">
             <Field label="Your name" hint="Used in the greeting">
               <input
@@ -473,7 +563,7 @@ export function SettingsPanel() {
               />
             </label>
           </Section>
-        </>
+        </div>
       )}
     </Modal>
   );
