@@ -39,7 +39,8 @@ class ReminderScheduler:
     ) -> None:
         self._repo = repo
         self._notifier = notifier
-        self._user_name = user_name
+        #: Used to phrase announcements; updated live when the name changes.
+        self.user_name = user_name
         self._poll_s = poll_s
         self._clock = clock or (lambda: datetime.now().astimezone())
 
@@ -50,7 +51,7 @@ class ReminderScheduler:
             log.info("reminder_due", id=reminder.id, text=reminder.text)
             await self._notifier.announce(
                 "reminder",
-                f"Pardon the interruption, {self._user_name}. A reminder: {reminder.text}",
+                f"Pardon the interruption, {self.user_name}. A reminder: {reminder.text}",
             )
             await self._repo.mark_delivered(reminder.id)
         if due:

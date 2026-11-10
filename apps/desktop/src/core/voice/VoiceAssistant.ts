@@ -5,6 +5,8 @@
  * @module
  */
 import { type AssistantStoreApi, createAssistantStore } from '../../state/assistantStore';
+import { coreApi } from '../api/client';
+import { EchoGate, FrameRing, pcm16Rms } from '../audio/echoGate';
 import { EarconPlayer, earconForTransition } from '../audio/earcons';
 import { MicrophoneCapture } from './MicrophoneCapture';
 import type { AssistantState, ServerMessage, SpeechSegmentMessage } from './protocol';
@@ -13,6 +15,8 @@ import { VoiceClient } from './VoiceClient';
 
 const DEFAULT_SAMPLE_RATE = 16_000;
 const DEFAULT_FRAME_SAMPLES = 1_280;
+/** Mic frames kept for voice barge-in so the first words aren't lost (~800 ms). */
+const BARGE_IN_PREROLL_FRAMES = 10;
 
 /**
  * Facade over the whole client-side voice pipeline.
@@ -30,6 +34,9 @@ export class VoiceAssistant {
   #mic: MicrophoneCapture | null = null;
   #player: SpeechPlayer | null = null;
   #earcons: EarconPlayer | null = null;
+  #echoGate: EchoGate | null = null;
+  #recentFrames = new FrameRing(BARGE_IN_PREROLL_FRAMES);
+  #quietNotifications = false;
 
   constructor(url: string) {
     this.#url = url;
@@ -114,6 +121,11 @@ export class VoiceAssistant {
     if (this.#earcons) this.#earcons.enabled = enabled;
   }
 
+  /** Focus mode: keep reminders on screen but skip their chime. */
+  setQuietNotifications(quiet: boolean): void {
+    this.#quietNotifications = quiet;
+  }
+
   /** Wake the assistant manually (same as saying the wake word). */
   activate(): void {
     this.#player?.stop();
@@ -173,10 +185,57 @@ export class VoiceAssistant {
 
   #handleMicFrame(frame: ArrayBuffer): void {
     const { state, capabilities } = this.store.getState();
-    if (
-      wantsAudio(state, capabilities?.wake_word_enabled ?? false, capabilities?.barge_in ?? 'off')
-    ) {
+    const bargeIn = capabilities?.barge_in ?? 'off';
+    const talking = state === 'speaking' || state === 'thinking';
+    if (bargeIn === 'voice' && talking && this.#voiceBargeIn(frame)) return;
+    if (wantsAudio(state, capabilities?.wake_word_enabled ?? false, bargeIn)) {
       this.#client?.sendAudio(frame);
+    }
+  }
+
+  /**
+   * Echo-aware barge-in: if the user talks over Jarvis, tell the server and
+   * replay the buffered frames so the request starts with their first word.
+   *
+   * @returns `true` if barge-in fired (the frame has been sent already).
+   */
+  #voiceBargeIn(frame: ArrayBuffer): boolean {
+    const capabilities = this.store.getState().capabilities;
+    this.#recentFrames.push(frame);
+    if (!this.#echoGate) {
+      const frameMs =
+        ((capabilities?.input_frame_samples ?? DEFAULT_FRAME_SAMPLES) * 1000) /
+        (capabilities?.input_sample_rate ?? DEFAULT_SAMPLE_RATE);
+      this.#echoGate = new EchoGate({
+        minSpeechFrames: Math.ceil((capabilities?.barge_in_min_speech_ms ?? 400) / frameMs),
+      });
+    }
+    const micLevel = pcm16Rms(new Int16Array(frame));
+    const outputLevel = this.#player?.outputLevel() ?? 0;
+    if (!this.#echoGate.push(micLevel, outputLevel)) return false;
+
+    this.#player?.stop();
+    this.#client?.send({ type: 'barge_in' });
+    for (const buffered of this.#recentFrames.drain()) this.#client?.sendAudio(buffered);
+    this.#echoGate.reset();
+    return true;
+  }
+
+  async #refreshSettings(): Promise<void> {
+    try {
+      const { values } = await coreApi.getSettings();
+      const store = this.store.getState();
+      const caps = store.capabilities;
+      if (!caps) return;
+      store.setCapabilities({
+        ...caps,
+        user_name: values.user_name,
+        barge_in: caps.speech_input_enabled ? values.barge_in : 'off',
+        barge_in_min_speech_ms: values.barge_in_min_speech_ms,
+      });
+      this.#echoGate = null; // rebuilt with the new timing on next use
+    } catch (error) {
+      console.warn('Could not refresh settings', error);
     }
   }
 
@@ -189,6 +248,10 @@ export class VoiceAssistant {
       case 'state': {
         const cue = earconForTransition(store.state, message.state);
         if (cue) this.#earcons?.play(cue);
+        if (message.state === 'speaking' || message.state === 'idle') {
+          this.#echoGate?.reset();
+          this.#recentFrames.clear();
+        }
         store.setState(message.state);
         break;
       }
@@ -225,9 +288,10 @@ export class VoiceAssistant {
         break;
       case 'notification':
         store.addMessage('notice', message.text);
-        this.#earcons?.play('notify');
+        if (!this.#quietNotifications) this.#earcons?.play('notify');
         break;
       case 'data_changed':
+        if (message.topic === 'settings') void this.#refreshSettings();
         store.bumpData(message.topic);
         break;
       case 'error':

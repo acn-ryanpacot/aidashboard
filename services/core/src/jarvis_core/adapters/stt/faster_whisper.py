@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+
 from jarvis_core.adapters.audio import pcm16_to_float32
 from jarvis_core.domain.errors import ConfigurationError, SpeechError
 from jarvis_core.domain.models import INPUT_SAMPLE_RATE, AudioClip
@@ -30,6 +32,8 @@ class FasterWhisperSpeechToText:
         language: str = "en",
         beam_size: int = 5,
     ) -> None:
+        if device in ("auto", "cuda"):
+            _preload_cuda_libraries()
         try:
             from faster_whisper import WhisperModel
         except ImportError as exc:  # pragma: no cover - depends on optional extra
@@ -52,3 +56,15 @@ class FasterWhisperSpeechToText:
             condition_on_previous_text=False,
         )
         return " ".join(segment.text.strip() for segment in segments).strip()
+
+
+def _preload_cuda_libraries() -> None:
+    """Make the CUDA/cuDNN DLLs bundled with PyTorch visible to CTranslate2.
+
+    On Windows, faster-whisper needs cuBLAS and cuDNN 9 for CUDA 12. A CUDA
+    build of PyTorch (installed with the ``cu128`` extra) ships compatible
+    DLLs and registers them on import, so importing it first is usually all
+    that's needed. Harmless if PyTorch is absent or CPU-only.
+    """
+    with contextlib.suppress(ImportError):
+        import torch  # noqa: F401

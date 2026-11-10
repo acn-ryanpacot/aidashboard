@@ -10,6 +10,8 @@ from collections.abc import Callable, Mapping
 from datetime import datetime
 from typing import Any
 
+from jarvis_core.application.briefing import BriefingService
+from jarvis_core.application.information import NewsService, ScheduleService
 from jarvis_core.application.memory import MemoryService
 from jarvis_core.application.tools.registry import (
     Tool,
@@ -300,11 +302,14 @@ def memory_tools(memory: MemoryService, notifier: Notifier | None = None) -> lis
 # ------------------------------------------------------------- information
 
 
-def weather_tools(provider: WeatherProvider, default_location: str = "") -> list[Tool]:
-    """``get_weather``."""
+def weather_tools(
+    provider: WeatherProvider, default_location: str | Callable[[], str] = ""
+) -> list[Tool]:
+    """``get_weather``. ``default_location`` may be a callable (live settings)."""
+    home = default_location if callable(default_location) else (lambda: default_location)
 
     async def get_weather(args: Mapping[str, Any]) -> str:
-        location = text_arg(args, "location", required=False) or default_location
+        location = text_arg(args, "location", required=False) or home()
         if not location:
             raise ToolError("no location given and no default location configured; ask the user")
         report = await provider.current(location)
@@ -320,7 +325,7 @@ def weather_tools(provider: WeatherProvider, default_location: str = "") -> list
             parts.append(f"today's high {report.high_c:.0f}°C, low {report.low_c:.0f}°C")
         return ", ".join(parts) + "."
 
-    hint = f" Defaults to {default_location}." if default_location else ""
+    hint = " Defaults to the user's home location if none is given."
     return [
         Tool(
             ToolSpec(
@@ -404,5 +409,98 @@ def document_tools(search: DocumentSearch) -> list[Tool]:
             ),
             "Searching your documents",
             search_documents,
+        )
+    ]
+
+
+# ------------------------------------------------------------ phase 4 data
+
+
+def _clock(moment: datetime) -> str:
+    return moment.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ")
+
+
+def news_tools(news: NewsService) -> list[Tool]:
+    """``get_headlines``."""
+
+    async def get_headlines(args: Mapping[str, Any]) -> str:
+        topic = (text_arg(args, "topic", required=False) or "").lower()
+        headlines = await news.headlines(limit=30)
+        if topic:
+            headlines = [h for h in headlines if topic in h.title.lower()]
+        if not headlines:
+            return "No headlines found" + (f" about {topic}." if topic else ".")
+        return "Headlines: " + " | ".join(f"{h.title} ({h.source})" for h in headlines[:6])
+
+    return [
+        Tool(
+            ToolSpec(
+                "get_headlines",
+                "Get the latest news headlines from the user's feeds, optionally about a topic.",
+                schema({"topic": _string("Optional keyword, e.g. 'football'.")}),
+            ),
+            "Reading the headlines",
+            get_headlines,
+        )
+    ]
+
+
+def schedule_tools(schedule: ScheduleService, clock: Clock = local_now) -> list[Tool]:
+    """``get_schedule``."""
+
+    async def get_schedule(args: Mapping[str, Any]) -> str:
+        if not schedule.configured:
+            raise ToolError("no calendar is connected; it can be added in Settings")
+        day = (text_arg(args, "day", required=False) or "today").lower()
+        offset = {"today": 0, "tomorrow": 1}.get(day)
+        if offset is None:
+            try:
+                target = datetime.fromisoformat(day).date()
+            except ValueError as exc:
+                raise ToolError("day must be 'today', 'tomorrow' or YYYY-MM-DD") from exc
+            offset = (target - clock().date()).days
+        events = await schedule.day(offset)
+        label = day if day in ("today", "tomorrow") else f"on {day}"
+        if not events:
+            return f"Nothing is scheduled {label}."
+        items = "; ".join(
+            f"{'all day' if e.all_day else _clock(e.start)}: {e.title}"
+            + (f" at {e.location}" if e.location else "")
+            for e in events[:10]
+        )
+        return f"{len(events)} event(s) {label}: {items}."
+
+    return [
+        Tool(
+            ToolSpec(
+                "get_schedule",
+                "Get the user's calendar events for a day.",
+                schema({"day": _string("'today', 'tomorrow' or a date YYYY-MM-DD.")}),
+            ),
+            "Checking your calendar",
+            get_schedule,
+        )
+    ]
+
+
+def briefing_tools(briefing: BriefingService) -> list[Tool]:
+    """``daily_briefing``."""
+
+    async def daily_briefing(_: Mapping[str, Any]) -> str:
+        facts = await briefing.facts()
+        return (
+            "Briefing facts (speak them as a natural briefing of at most seven sentences, "
+            f"skipping nothing important):\n{facts}"
+        )
+
+    return [
+        Tool(
+            ToolSpec(
+                "daily_briefing",
+                "Get everything for a morning briefing: weather, calendar, tasks, reminders and "
+                "headlines. Use when the user asks for a briefing or what their day looks like.",
+            ),
+            "Preparing your briefing",
+            daily_briefing,
         )
     ]

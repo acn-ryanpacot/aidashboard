@@ -36,6 +36,7 @@ export class SpeechPlayer {
   #nextStart = 0;
   #queue: Promise<void> = Promise.resolve();
   #generation = 0;
+  #levelBuffer: Float32Array<ArrayBuffer> | null = null;
 
   /**
    * @param context - Shared audio context.
@@ -72,6 +73,16 @@ export class SpeechPlayer {
         this.#onEnded(segment.segment_id);
       });
     return this.#queue;
+  }
+
+  /** RMS level of what is playing right now (0 when silent). */
+  outputLevel(): number {
+    if (this.#scheduled.length === 0) return 0;
+    this.#levelBuffer ??= new Float32Array(this.analyser.fftSize);
+    this.analyser.getFloatTimeDomainData(this.#levelBuffer);
+    let sum = 0;
+    for (const sample of this.#levelBuffer) sum += sample * sample;
+    return Math.sqrt(sum / this.#levelBuffer.length);
   }
 
   /** The caption for whatever is audible at this instant. */

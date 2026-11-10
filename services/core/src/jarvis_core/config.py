@@ -117,6 +117,10 @@ class Settings(BaseSettings):
     llm_model: str = "llama3.2:3b"
     llm_temperature: float = Field(default=0.6, ge=0.0, le=2.0)
     llm_timeout_s: float = Field(default=120.0, gt=0)
+    llm_think: bool | None = Field(
+        default=None,
+        description="Reasoning models only: false = skip thinking (faster), true = think.",
+    )
     history_messages: int = Field(default=20, ge=0, description="Past messages kept as context.")
 
     # --- Brain: tools & memory -----------------------------------------------
@@ -142,6 +146,19 @@ class Settings(BaseSettings):
     documents_dir: str = Field(default="", description="Folder of notes to search (RAG).")
     mcp_servers: list[McpServerSettings] = Field(default_factory=list)
     reminder_poll_s: float = Field(default=5.0, ge=1.0)
+
+    # --- Dashboard data & briefing (defaults; editable in Settings) -----------
+    news_feeds: list[str] = Field(
+        default_factory=lambda: [
+            "https://feeds.bbci.co.uk/news/world/rss.xml",
+            "https://feeds.npr.org/1001/rss.xml",
+        ]
+    )
+    calendar_urls: list[str] = Field(
+        default_factory=list, description="Private ICS addresses or .ics file paths."
+    )
+    briefing_time: str = Field(default="", description="Daily spoken briefing, HH:MM (empty=off).")
+    system_monitor_enabled: bool = True
 
     # --- Storage --------------------------------------------------------------
     data_dir: Path = Field(

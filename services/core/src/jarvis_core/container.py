@@ -22,17 +22,21 @@ import structlog
 from jarvis_core.adapters.persistence.database import Database
 from jarvis_core.adapters.persistence.repositories import (
     SqliteMemoryStore,
+    SqlitePreferenceStore,
     SqliteReminderRepository,
     SqliteTaskRepository,
 )
 from jarvis_core.application.brain import Brain
+from jarvis_core.application.briefing import BriefingScheduler, BriefingService
 from jarvis_core.application.conversation import ConversationHistory
 from jarvis_core.application.endpointing import EndpointingConfig, UtteranceRecorder
 from jarvis_core.application.greeting import GreetingCache
 from jarvis_core.application.hub import SessionHub
+from jarvis_core.application.information import NewsService, ScheduleService, WeatherService
 from jarvis_core.application.memory import MemoryService
 from jarvis_core.application.persona import Persona, PersonaStyle
 from jarvis_core.application.reminders import ReminderScheduler
+from jarvis_core.application.runtime_settings import RuntimeSettings, SettingsService
 from jarvis_core.application.speaker import SpeakerVerification
 from jarvis_core.application.tools import builtin
 from jarvis_core.application.tools.registry import Tool, ToolRegistry
@@ -41,15 +45,21 @@ from jarvis_core.application.voice_session import SessionConfig, VoiceSession
 from jarvis_core.config import Settings
 from jarvis_core.domain.models import INPUT_FRAME_SAMPLES, INPUT_SAMPLE_RATE
 from jarvis_core.domain.ports import (
+    CalendarProvider,
     DocumentSearch,
     EmbeddingModel,
     KnowledgeProvider,
     LanguageModel,
+    NewsProvider,
+    PreferenceStore,
     ReminderRepository,
     SpeakerEncoder,
     SpeechToText,
     SupportsClose,
+    SupportsModelSwitch,
+    SupportsVoiceConfig,
     SupportsWarmUp,
+    SystemMonitor,
     TaskRepository,
     TextToSpeech,
     VoiceActivityDetector,
@@ -65,6 +75,30 @@ log = structlog.get_logger(__name__)
 FRAME_MS = INPUT_FRAME_SAMPLES * 1000 // INPUT_SAMPLE_RATE
 
 
+def runtime_defaults(s: Settings) -> RuntimeSettings:
+    """The environment's values for every setting editable in the dashboard."""
+    return RuntimeSettings(
+        user_name=s.user_name,
+        persona_formality=s.persona_formality,
+        persona_verbosity=s.persona_verbosity,
+        persona_humour=s.persona_humour,
+        tts_voice=s.tts_voice,
+        tts_speed=s.tts_speed,
+        wake_threshold=s.wake_threshold,
+        end_of_speech_ms=s.end_of_speech_ms,
+        listen_timeout_ms=s.listen_timeout_ms,
+        follow_up_ms=s.follow_up_ms,
+        barge_in=s.barge_in,
+        barge_in_min_speech_ms=s.barge_in_min_speech_ms,
+        speaker_threshold=s.speaker_threshold,
+        llm_model=s.llm_model,
+        default_location=s.default_location,
+        briefing_time=s.briefing_time,
+        news_feeds=list(s.news_feeds),
+        calendar_urls=list(s.calendar_urls),
+    )
+
+
 @dataclass
 class Container:
     """Long-lived services shared by all voice sessions.
@@ -74,7 +108,8 @@ class Container:
     """
 
     settings: Settings
-    persona: Persona
+    runtime: SettingsService
+    preferences: PreferenceStore
     brain: Brain
     tools: ToolRegistry
     greeting: GreetingCache
@@ -84,52 +119,68 @@ class Container:
     memory: MemoryService | None
     stt: SpeechToText | None
     tts: TextToSpeech | None
+    llm: LanguageModel
     wake_factory: Callable[[], WakeWordDetector] | None
     vad_factory: Callable[[], VoiceActivityDetector]
+    briefing: BriefingService
+    weather: WeatherService | None = None
+    news: NewsService | None = None
+    schedule: ScheduleService | None = None
+    system: SystemMonitor | None = None
     speaker: SpeakerVerification | None = None
     router: ToolRouter | None = None
     database: Database | None = None
-    scheduler: ReminderScheduler | None = None
+    background: list[Any] = field(default_factory=list)
     warmables: list[Any] = field(default_factory=list)
     closables: list[Any] = field(default_factory=list)
     tool_sources: list[Any] = field(default_factory=list)
     _tasks: list[asyncio.Task[Any]] = field(default_factory=list)
 
-    def new_session(self, sink: VoiceEventSink) -> VoiceSession:
-        """Create a voice session bound to ``sink`` (one per client connection)."""
-        s = self.settings
-        recorder = UtteranceRecorder(
-            self.vad_factory(),
-            INPUT_SAMPLE_RATE,
+    @property
+    def persona(self) -> Persona:
+        """The persona in use (changes live with Settings)."""
+        return self.brain.persona
+
+    def session_config(self) -> tuple[SessionConfig, EndpointingConfig]:
+        """Session and endpointing configuration from the current settings."""
+        r = self.runtime.current
+        return (
+            SessionConfig(
+                listen_timeout_ms=r.listen_timeout_ms,
+                follow_up_ms=r.follow_up_ms,
+                barge_in=r.barge_in,
+                barge_in_min_speech_ms=r.barge_in_min_speech_ms,
+                playback_grace_ms=self.settings.playback_grace_ms,
+                frame_ms=FRAME_MS,
+            ),
             EndpointingConfig(
                 frame_ms=FRAME_MS,
-                end_of_speech_ms=s.end_of_speech_ms,
-                max_utterance_ms=s.max_utterance_ms,
-            ),
-        )
-        return VoiceSession(
-            sink=sink,
-            brain=self.brain,
-            greeting=self.greeting,
-            recorder=recorder,
-            history=ConversationHistory(s.history_messages),
-            stt=self.stt,
-            tts=self.tts,
-            wake=self.wake_factory() if self.wake_factory else None,
-            barge_vad=self.vad_factory() if s.barge_in == "voice" else None,
-            speaker=self.speaker,
-            config=SessionConfig(
-                listen_timeout_ms=s.listen_timeout_ms,
-                follow_up_ms=s.follow_up_ms,
-                barge_in=s.barge_in,
-                barge_in_min_speech_ms=s.barge_in_min_speech_ms,
-                playback_grace_ms=s.playback_grace_ms,
-                frame_ms=FRAME_MS,
+                end_of_speech_ms=r.end_of_speech_ms,
+                max_utterance_ms=self.settings.max_utterance_ms,
             ),
         )
 
+    def new_session(self, sink: VoiceEventSink) -> VoiceSession:
+        """Create a voice session bound to ``sink`` (one per client connection)."""
+        config, endpointing = self.session_config()
+        session = VoiceSession(
+            sink=sink,
+            brain=self.brain,
+            greeting=self.greeting,
+            recorder=UtteranceRecorder(self.vad_factory(), INPUT_SAMPLE_RATE, endpointing),
+            history=ConversationHistory(self.settings.history_messages),
+            stt=self.stt,
+            tts=self.tts,
+            wake=self.wake_factory() if self.wake_factory else None,
+            speaker=self.speaker,
+            config=config,
+        )
+        session.apply_config(config, wake_threshold=self.runtime.current.wake_threshold)
+        return session
+
     async def warm_up(self) -> None:
-        """Preload models, start MCP servers and background jobs."""
+        """Load stored settings, preload models, start MCP servers and background jobs."""
+        await self.runtime.load()
         for adapter in self.warmables:
             if isinstance(adapter, SupportsWarmUp):
                 await adapter.warm_up()
@@ -147,8 +198,8 @@ class Container:
         if self.tts is not None:
             log.info("greeting_synthesizing", text=self.greeting.text)
             await self.greeting.get()
-        if self.scheduler is not None:
-            self._tasks.append(asyncio.create_task(self.scheduler.run(), name="jarvis-reminders"))
+        for job in self.background:
+            self._tasks.append(asyncio.create_task(job.run(), name=type(job).__name__))
         log.info("brain_ready", tools=[spec.name for spec in self.tools.specs()])
 
     async def aclose(self) -> None:
@@ -182,6 +233,9 @@ def assemble(
     knowledge: KnowledgeProvider | None = None,
     web_search: WebSearchProvider | None = None,
     documents: DocumentSearch | None = None,
+    news: NewsProvider | None = None,
+    calendar: CalendarProvider | None = None,
+    system: SystemMonitor | None = None,
     speaker_encoder: SpeakerEncoder | None = None,
     voiceprints: VoiceprintStore | None = None,
     tool_sources: Sequence[Any] = (),
@@ -190,18 +244,21 @@ def assemble(
     """Wire adapters into application services.
 
     Args:
-        settings: Configuration.
+        settings: Configuration (defaults for the live, user-editable settings).
         llm: Language model.
         database: Open database (``Database(":memory:")`` in tests).
         vad_factory: Creates a VAD per session.
         stt: Speech recognition.
         tts: Speech synthesis.
         wake_factory: Creates a wake-word detector per session.
-        embedder: Embeddings for memory search.
+        embedder: Embeddings for memory search and tool routing.
         weather: Weather provider.
         knowledge: Encyclopedia provider.
         web_search: Web search provider.
         documents: Local document search.
+        news: RSS/Atom reader.
+        calendar: ICS reader.
+        system: Host monitor.
         speaker_encoder: Voice-ID embedding model.
         voiceprints: Voice-ID persistence.
         tool_sources: Async tool providers started during warm-up (MCP).
@@ -209,12 +266,18 @@ def assemble(
     """
     s = settings
     hub = SessionHub()
-    persona = Persona(
-        s.assistant_name,
-        s.user_name,
-        s.greeting,
-        PersonaStyle(s.persona_formality, s.persona_verbosity, s.persona_humour),
-    )
+    preferences = SqlitePreferenceStore(database)
+    runtime = SettingsService(runtime_defaults(s), preferences)
+
+    def make_persona(r: RuntimeSettings) -> Persona:
+        return Persona(
+            s.assistant_name,
+            r.user_name,
+            s.greeting_template.format(user_name=r.user_name),
+            PersonaStyle(r.persona_formality, r.persona_verbosity, r.persona_humour),
+        )
+
+    persona = make_persona(runtime.current)
     tasks = SqliteTaskRepository(database)
     reminders = SqliteReminderRepository(database)
     memory = (
@@ -227,6 +290,20 @@ def assemble(
         if s.memory_enabled
         else None
     )
+    weather_service = (
+        WeatherService(weather, lambda: runtime.current.default_location) if weather else None
+    )
+    news_service = NewsService(news, lambda: runtime.current.news_feeds) if news else None
+    schedule_service = (
+        ScheduleService(calendar, lambda: runtime.current.calendar_urls) if calendar else None
+    )
+    briefing = BriefingService(
+        tasks=tasks,
+        reminders=reminders,
+        weather=weather_service,
+        schedule=schedule_service,
+        news=news_service,
+    )
 
     tools = ToolRegistry()
     if s.tools_enabled:
@@ -235,14 +312,21 @@ def assemble(
         tools.extend(builtin.reminder_tools(reminders, hub))
         if memory is not None:
             tools.extend(builtin.memory_tools(memory, hub))
-        if weather is not None:
-            tools.extend(builtin.weather_tools(weather, s.default_location))
+        if weather_service is not None:
+            tools.extend(
+                builtin.weather_tools(weather_service, lambda: runtime.current.default_location)
+            )
         if knowledge is not None:
             tools.extend(builtin.knowledge_tools(knowledge))
         if web_search is not None:
             tools.extend(builtin.web_search_tools(web_search))
         if documents is not None:
             tools.extend(builtin.document_tools(documents))
+        if news_service is not None:
+            tools.extend(builtin.news_tools(news_service))
+        if schedule_service is not None:
+            tools.extend(builtin.schedule_tools(schedule_service))
+        tools.extend(builtin.briefing_tools(briefing))
 
     router = (
         ToolRouter(embedder=embedder, max_tools=s.tool_routing_max_tools)
@@ -259,39 +343,102 @@ def assemble(
         if speaker_encoder is not None and voiceprints is not None
         else None
     )
-    all_adapters = [llm, embedder, weather, knowledge, web_search, documents, stt, tts, *adapters]
-    present = [a for a in all_adapters if a is not None]
-    return Container(
-        settings=s,
-        persona=persona,
-        brain=Brain(
+    brain = Brain(
+        llm,
+        persona,
+        tools if s.tools_enabled else None,
+        memory,
+        router=router,
+        max_tool_rounds=s.max_tool_rounds,
+    )
+    greeting = GreetingCache(persona.greeting, tts)
+    reminder_scheduler = ReminderScheduler(
+        reminders, hub, user_name=persona.user_name, poll_s=s.reminder_poll_s
+    )
+    briefing_scheduler = BriefingScheduler(
+        compose=brain.compose,
+        briefing=briefing,
+        notifier=hub,
+        store=preferences,
+        briefing_time=lambda: runtime.current.briefing_time,
+        has_listeners=lambda: len(hub) > 0,
+    )
+    present = [
+        a
+        for a in (
             llm,
-            persona,
-            tools if s.tools_enabled else None,
-            memory,
-            router=router,
-            max_tool_rounds=s.max_tool_rounds,
-        ),
+            embedder,
+            weather,
+            knowledge,
+            web_search,
+            documents,
+            news,
+            calendar,
+            stt,
+            tts,
+            *adapters,
+        )
+        if a is not None
+    ]
+    container = Container(
+        settings=s,
+        runtime=runtime,
+        preferences=preferences,
+        brain=brain,
         tools=tools,
-        greeting=GreetingCache(s.greeting, tts),
+        greeting=greeting,
         hub=hub,
         tasks=tasks,
         reminders=reminders,
         memory=memory,
         stt=stt,
         tts=tts,
+        llm=llm,
         wake_factory=wake_factory,
         vad_factory=vad_factory,
+        briefing=briefing,
+        weather=weather_service,
+        news=news_service,
+        schedule=schedule_service,
+        system=system,
         speaker=speaker,
         router=router,
         database=database,
-        scheduler=ReminderScheduler(
-            reminders, hub, user_name=s.user_name, poll_s=s.reminder_poll_s
-        ),
+        background=[reminder_scheduler, briefing_scheduler],
         warmables=present,
         closables=[*present, *tool_sources],
         tool_sources=list(tool_sources),
     )
+
+    async def apply_settings(new: RuntimeSettings, old: RuntimeSettings) -> None:
+        """Push changed settings into every live component."""
+        persona_fields = ("user_name", "persona_formality", "persona_verbosity", "persona_humour")
+        if any(getattr(new, f) != getattr(old, f) for f in persona_fields):
+            updated = make_persona(new)
+            brain.set_persona(updated)
+            greeting.set_text(updated.greeting)
+            reminder_scheduler.user_name = new.user_name
+        if (new.tts_voice, new.tts_speed) != (old.tts_voice, old.tts_speed) and isinstance(
+            tts, SupportsVoiceConfig
+        ):
+            tts.configure(voice=new.tts_voice, speed=new.tts_speed)
+            greeting.set_engine(tts)
+        if new.llm_model != old.llm_model and isinstance(llm, SupportsModelSwitch):
+            llm.set_model(new.llm_model)
+        if speaker is not None:
+            speaker.threshold = new.speaker_threshold
+        if news_service is not None and new.news_feeds != old.news_feeds:
+            news_service.invalidate()
+        if schedule_service is not None and new.calendar_urls != old.calendar_urls:
+            schedule_service.invalidate()
+        config, endpointing = container.session_config()
+        for session in hub.sessions():
+            session.apply_config(config, endpointing=endpointing, wake_threshold=new.wake_threshold)
+        if new != old:
+            await hub.data_changed("settings")
+
+    runtime.on_change(apply_settings)
+    return container
 
 
 # ------------------------------------------------------------ real adapters
@@ -322,6 +469,9 @@ def build_container(settings: Settings) -> Container:
         knowledge=_build_knowledge(s),
         web_search=_build_web_search(s),
         documents=_build_documents(s, database, embedder),
+        news=_build_news(),
+        calendar=_build_calendar(),
+        system=_build_system(s),
         speaker_encoder=speaker_encoder if stt is not None else None,
         voiceprints=voiceprints,
         tool_sources=_build_mcp(s),
@@ -343,6 +493,7 @@ def _build_llm(s: Settings) -> LanguageModel:
         model=s.llm_model,
         temperature=s.llm_temperature,
         timeout_s=s.llm_timeout_s,
+        think=s.llm_think,
     )
 
 
@@ -418,7 +569,7 @@ def _build_speaker(s: Settings) -> tuple[SpeakerEncoder | None, VoiceprintStore 
 
 
 def _build_weather(s: Settings) -> WeatherProvider | None:
-    if not (s.tools_enabled and s.weather_enabled):
+    if not s.weather_enabled:
         return None
     from jarvis_core.adapters.web.open_meteo import OpenMeteoWeatherProvider
 
@@ -452,6 +603,26 @@ def _build_documents(
     return FolderDocumentIndex(
         Path(s.documents_dir).expanduser(), SqliteDocumentChunkStore(database), embedder
     )
+
+
+def _build_news() -> NewsProvider:
+    from jarvis_core.adapters.web.rss import RssNewsProvider
+
+    return RssNewsProvider()
+
+
+def _build_calendar() -> CalendarProvider:
+    from jarvis_core.adapters.calendar.ics import IcsCalendarProvider
+
+    return IcsCalendarProvider()
+
+
+def _build_system(s: Settings) -> SystemMonitor | None:
+    if not s.system_monitor_enabled:
+        return None
+    from jarvis_core.adapters.system.monitor import PsutilSystemMonitor
+
+    return PsutilSystemMonitor()
 
 
 def _build_mcp(s: Settings) -> list[Any]:

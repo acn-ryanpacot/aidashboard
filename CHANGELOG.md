@@ -5,6 +5,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-10
+
+Phase 4 (dashboard) plus the carried-forward items.
+
+### Added
+
+- **Editable dashboard**: drag tiles between sides, resize (1–4 rows), add/remove from a widget gallery; layout saved to the core service (`/api/ui-preferences/layout`) with a local fallback.
+- **New widgets**: Weather (Open-Meteo), Schedule (ICS calendars: Google/Outlook/Apple/files, recurring events expanded), Briefing (RSS/Atom headlines), Memory (view and forget), Machine (CPU/RAM/GPU via psutil + nvidia-smi). The Tasks widget is unchanged.
+- **Morning briefing**: `daily_briefing` tool ("good morning, Jarvis"), a **Brief me** button, and an optional daily spoken briefing at a set time (delivered once per day, persisted across restarts).
+- New tools: `get_headlines`, `get_schedule`, `daily_briefing`, with routing groups.
+- **Command palette** (Ctrl/⌘+K): actions plus "ask Jarvis" for free text.
+- **Themes** Arctic, Stark Gold and Stealth (CSS variables; the orb follows), **focus mode**, **ambient mode** (screensaver clock after inactivity).
+- **Live Settings screen**: persona, voice and speed, wake sensitivity, end-of-speech pause, follow-up, barge-in, voice-ID strictness and training, LLM model (from installed Ollama models), home location, briefing time, news feeds, calendars, appearance. Applied without restart ([ADR-0012](docs/adr/0012-runtime-settings.md)).
+- **Echo-aware voice barge-in** through speakers: client-side double-talk detection with pre-roll replay ([ADR-0013](docs/adr/0013-echo-aware-barge-in.md)).
+- **Desktop app launches the core service** (and stops it on exit) unless one is already running ([ADR-0014](docs/adr/0014-desktop-launches-core.md)); experimental PyInstaller bundle script.
+- **`jarvis-doctor`**: one command that checks Python, Ollama and models, every speech package, NVIDIA driver, PyTorch CUDA and Whisper GPU support, with fix hints.
+- **GPU/CPU PyTorch extras** (`--extra cu128` / `--extra cpu`) via uv indexes.
+- `JARVIS_LLM_THINK` and automatic hiding of `<think>` blocks from reasoning models.
+- Docs: step-by-step **personal GPU PC setup guide**, dashboard guide, ADRs 0012–0014.
+
+### Changed
+
+- Protocol **v3**: client `barge_in` message, `ready.barge_in_min_speech_ms`; server-side VAD barge-in removed in favour of the client detector.
+- The persona prompt and greeting follow live settings; `data_changed: settings` notifies clients.
+- Weather is available to widgets even when tools are disabled.
+
 ### Changed
 
 - **Per-request tool routing** (`JARVIS_TOOL_ROUTING=auto`): only the tool groups a request needs are attached, chosen by keywords, the previous user message and an optional embedding fallback. On a CPU-only laptop with `llama3.2:3b`, chit-chat turns drop from ~17 s to ~2.3 s and tool turns from 17–30 s to ~7–9 s, with fewer spurious tool calls ([ADR-0011](docs/adr/0011-tool-routing.md)).

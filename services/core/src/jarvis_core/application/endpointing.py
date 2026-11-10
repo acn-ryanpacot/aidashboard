@@ -80,6 +80,11 @@ class UtteranceRecorder:
         """Whether the user has begun speaking in the current window."""
         return bool(self._frames)
 
+    def configure(self, config: EndpointingConfig) -> None:
+        """Change timing (applies from the next listening window)."""
+        self._config = config
+        self._pre_roll = deque(self._pre_roll, maxlen=max(1, config.pre_roll_ms // config.frame_ms))
+
     def reset(self, timeout_ms: int) -> None:
         """Start a fresh listening window.
 

@@ -1,6 +1,6 @@
 {
   "name": "@jarvis/desktop",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Jarvis OS desktop dashboard (React + Vite, packaged with Tauri).",
   "type": "module",

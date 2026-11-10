@@ -59,6 +59,14 @@ MIGRATIONS: tuple[str, ...] = (
     );
     CREATE INDEX idx_document_chunks_path ON document_chunks (path);
     """,
+    # 3 — UI layout, runtime settings and other small JSON documents
+    """
+    CREATE TABLE preferences (
+        key        TEXT PRIMARY KEY,
+        value      TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+    """,
 )
 
 

@@ -1,0 +1,281 @@
+"""``jarvis-doctor``: check that every part of Jarvis is installed and working.
+
+Run it on a new machine after following ``docs/guides/personal-pc-setup.md``::
+
+    uv run jarvis-doctor
+
+Each check prints ✓ (ok), ! (optional / degraded) or ✗ (broken) with a hint.
+The exit code is non-zero if any required check fails.
+"""
+
+from __future__ import annotations
+
+import importlib
+import importlib.util
+import os
+import shutil
+import socket
+import sys
+from collections.abc import Callable
+from dataclasses import dataclass
+from enum import StrEnum
+
+import httpx
+
+from jarvis_core import __version__
+from jarvis_core.config import Settings
+
+
+class Status(StrEnum):
+    """Outcome of a check."""
+
+    OK = "ok"
+    WARN = "warn"
+    FAIL = "fail"
+
+
+@dataclass(frozen=True, slots=True)
+class Check:
+    """One diagnostic result."""
+
+    name: str
+    status: Status
+    detail: str
+    hint: str = ""
+
+
+SYMBOL = {Status.OK: "✓", Status.WARN: "!", Status.FAIL: "✗"}
+
+
+def _has(module: str) -> bool:
+    return importlib.util.find_spec(module) is not None
+
+
+# ------------------------------------------------------------------- checks
+
+
+def check_python() -> Check:
+    """Python 3.11 to 3.13 is supported; 3.12 is what the project pins."""
+    version = sys.version_info
+    label = f"{version.major}.{version.minor}.{version.micro}"
+    if (3, 11) <= version[:2] <= (3, 13):
+        return Check("Python", Status.OK, label)
+    return Check(
+        "Python",
+        Status.WARN,
+        label,
+        "Speech libraries publish wheels for 3.11-3.13. Use `uv sync` (it installs 3.12).",
+    )
+
+
+def check_package(module: str, label: str, extra: str, *, required: bool = False) -> Check:
+    """Whether an optional dependency is importable."""
+    if _has(module):
+        return Check(label, Status.OK, "installed")
+    return Check(
+        label,
+        Status.FAIL if required else Status.WARN,
+        "not installed",
+        f"uv sync --group dev --extra {extra} (plus --extra cu128 on an NVIDIA GPU)",
+    )
+
+
+def check_torch() -> Check:
+    """PyTorch build and whether it sees the GPU."""
+    if not _has("torch"):
+        return Check("PyTorch", Status.WARN, "not installed", "Comes with --extra voice.")
+    import torch
+
+    if torch.cuda.is_available():
+        return Check(
+            "PyTorch", Status.OK, f"{torch.__version__} · CUDA · {torch.cuda.get_device_name(0)}"
+        )
+    hint = (
+        "CPU-only build. For the GPU: uv sync --group dev --extra voice --extra cu128"
+        if "+cpu" in torch.__version__ or torch.version.cuda is None
+        else "CUDA build but no GPU visible: update the NVIDIA driver, then reboot."
+    )
+    return Check("PyTorch", Status.WARN, f"{torch.__version__} · CPU", hint)
+
+
+def check_whisper_gpu(settings: Settings) -> Check:
+    """Whether faster-whisper (CTranslate2) can use CUDA."""
+    if not _has("ctranslate2"):
+        return Check("Whisper GPU", Status.WARN, "faster-whisper not installed")
+    if _has("torch"):
+        importlib.import_module("torch")  # registers bundled CUDA DLLs on Windows
+    import ctranslate2
+
+    count = ctranslate2.get_cuda_device_count()
+    if count > 0:
+        return Check("Whisper GPU", Status.OK, f"{count} CUDA device(s)")
+    status = Status.FAIL if settings.stt_device == "cuda" else Status.WARN
+    return Check(
+        "Whisper GPU",
+        status,
+        "CPU only",
+        "Fine for base.en/small.en. For the GPU see the setup guide's 'Whisper on the GPU'.",
+    )
+
+
+def check_nvidia() -> Check:
+    """Whether the NVIDIA driver is installed."""
+    if shutil.which("nvidia-smi") is None:
+        return Check(
+            "NVIDIA driver",
+            Status.WARN,
+            "nvidia-smi not found",
+            "Install the latest Game/Studio driver.",
+        )
+    from jarvis_core.adapters.system.monitor import query_nvidia_smi
+
+    gpus = query_nvidia_smi()
+    if not gpus:
+        return Check("NVIDIA driver", Status.WARN, "no GPU reported")
+    return Check(
+        "NVIDIA driver",
+        Status.OK,
+        ", ".join(f"{g.name} ({g.memory_total_mb / 1024:.0f} GB)" for g in gpus),
+    )
+
+
+def check_ollama(settings: Settings) -> list[Check]:
+    """Ollama is running and has the configured models."""
+    try:
+        tags = httpx.get(f"{settings.llm_base_url}/api/tags", timeout=3).json()
+    except (httpx.HTTPError, ValueError):
+        return [
+            Check(
+                "Ollama",
+                Status.FAIL,
+                f"unreachable at {settings.llm_base_url}",
+                "Install from https://ollama.com and make sure it is running (tray icon).",
+            )
+        ]
+    installed = {m.get("name", "") for m in tags.get("models", [])}
+
+    def has(model: str) -> bool:
+        return bool(installed & {model, f"{model}:latest"})
+
+    checks = [Check("Ollama", Status.OK, f"{len(installed)} model(s) installed")]
+    checks.append(
+        Check("LLM model", Status.OK, settings.llm_model)
+        if has(settings.llm_model)
+        else Check(
+            "LLM model",
+            Status.FAIL,
+            f"{settings.llm_model} missing",
+            f"ollama pull {settings.llm_model}",
+        )
+    )
+    checks.append(
+        Check("Embedding model", Status.OK, settings.embedding_model)
+        if has(settings.embedding_model)
+        else Check(
+            "Embedding model",
+            Status.WARN,
+            f"{settings.embedding_model} missing (memory falls back to keywords)",
+            f"ollama pull {settings.embedding_model}",
+        )
+    )
+    return checks
+
+
+def check_espeak() -> Check:
+    """espeak-ng improves Kokoro's pronunciation of unusual words."""
+    if shutil.which("espeak-ng") or shutil.which("espeak"):
+        return Check("espeak-ng", Status.OK, "found")
+    return Check(
+        "espeak-ng",
+        Status.WARN,
+        "not found (optional)",
+        "Install the MSI from https://github.com/espeak-ng/espeak-ng/releases",
+    )
+
+
+def check_data_dir(settings: Settings) -> Check:
+    """The data directory is writable."""
+    try:
+        settings.data_dir.mkdir(parents=True, exist_ok=True)
+        probe = settings.data_dir / ".doctor"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+    except OSError as exc:
+        return Check(
+            "Data directory", Status.FAIL, str(exc), "Set JARVIS_DATA_DIR to a writable folder."
+        )
+    return Check("Data directory", Status.OK, str(settings.data_dir))
+
+
+def check_port(settings: Settings) -> Check:
+    """Whether the service port is free (or already serving Jarvis)."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(0.5)
+        in_use = sock.connect_ex((settings.host, settings.port)) == 0
+    if not in_use:
+        return Check("Port", Status.OK, f"{settings.host}:{settings.port} free")
+    try:
+        health = httpx.get(f"http://{settings.host}:{settings.port}/api/health", timeout=2).json()
+        return Check("Port", Status.OK, f"Jarvis {health.get('version')} already running")
+    except (httpx.HTTPError, ValueError):
+        return Check(
+            "Port",
+            Status.FAIL,
+            f"{settings.port} used by another program",
+            "Free the port or set JARVIS_PORT (and VITE_JARVIS_CORE_URL in the UI).",
+        )
+
+
+def run_checks(settings: Settings) -> list[Check]:
+    """Run every check (never raises)."""
+    checks: list[Check] = [check_python(), check_data_dir(settings), check_port(settings)]
+    checks += check_ollama(settings)
+    voice: list[tuple[str, str, str, bool]] = [
+        ("faster_whisper", "faster-whisper (STT)", "voice", settings.stt_engine != "none"),
+        ("kokoro", "Kokoro (TTS)", "voice", settings.tts_engine != "none"),
+        ("openwakeword", "openWakeWord", "voice", settings.wake_engine != "none"),
+        ("webrtcvad", "WebRTC VAD", "voice", settings.vad_engine == "webrtc"),
+        ("silero_vad", "Silero VAD", "voice", settings.vad_engine == "silero"),
+        ("speechbrain", "SpeechBrain (voice ID)", "speaker", settings.speaker_verification),
+        ("mcp", "MCP client", "mcp", bool(settings.mcp_servers)),
+    ]
+    for module, label, extra, required in voice:
+        checks.append(check_package(module, label, extra, required=required))
+    guarded: list[Callable[[], Check]] = [
+        check_nvidia,
+        check_torch,
+        lambda: check_whisper_gpu(settings),
+        check_espeak,
+    ]
+    for check in guarded:
+        try:
+            checks.append(check())
+        except Exception as exc:  # a diagnostic must never crash the doctor
+            checks.append(Check(getattr(check, "__name__", "check"), Status.WARN, f"error: {exc}"))
+    return checks
+
+
+def main() -> None:
+    """Entry point for ``jarvis-doctor``."""
+    if os.name == "nt":
+        with __import__("contextlib").suppress(Exception):
+            sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+    settings = Settings()
+    print(f"Jarvis OS doctor · core {__version__}\n")
+    checks = run_checks(settings)
+    width = max(len(c.name) for c in checks)
+    for check in checks:
+        print(f"  {SYMBOL[check.status]} {check.name.ljust(width)}  {check.detail}")
+        if check.hint and check.status is not Status.OK:
+            print(f"    {' ' * width}  → {check.hint}")
+    failures = [c for c in checks if c.status is Status.FAIL]
+    warnings = [c for c in checks if c.status is Status.WARN]
+    print(
+        f"\n{len(checks) - len(failures) - len(warnings)} ok · {len(warnings)} warning(s) · "
+        f"{len(failures)} problem(s)"
+    )
+    raise SystemExit(1 if failures else 0)
+
+
+if __name__ == "__main__":
+    main()

@@ -29,7 +29,92 @@ export interface Memory {
   readonly created_at: string;
 }
 
-/** Raised for non-2xx responses. */
+/** Everything editable in the Settings screen (mirrors `RuntimeSettings`). */
+export interface RuntimeSettings {
+  readonly user_name: string;
+  readonly persona_formality: 'formal' | 'balanced' | 'casual';
+  readonly persona_verbosity: 'brief' | 'balanced' | 'detailed';
+  readonly persona_humour: 'none' | 'dry' | 'playful';
+  readonly tts_voice: string;
+  readonly tts_speed: number;
+  readonly wake_threshold: number;
+  readonly end_of_speech_ms: number;
+  readonly listen_timeout_ms: number;
+  readonly follow_up_ms: number;
+  readonly barge_in: 'off' | 'wake_word' | 'voice';
+  readonly barge_in_min_speech_ms: number;
+  readonly speaker_threshold: number;
+  readonly llm_model: string;
+  readonly default_location: string;
+  readonly briefing_time: string;
+  readonly news_feeds: readonly string[];
+  readonly calendar_urls: readonly string[];
+}
+
+export interface SettingsResponse {
+  readonly values: RuntimeSettings;
+  readonly defaults: RuntimeSettings;
+}
+
+export interface VoiceOption {
+  readonly id: string;
+  readonly label: string;
+}
+
+export interface ModelsResponse {
+  readonly current: string;
+  readonly available: readonly string[];
+}
+
+export interface Weather {
+  readonly location: string;
+  readonly temperature_c: number;
+  readonly feels_like_c: number;
+  readonly description: string;
+  readonly wind_kph: number;
+  readonly humidity_pct: number;
+  readonly high_c: number | null;
+  readonly low_c: number | null;
+}
+
+export interface Headline {
+  readonly title: string;
+  readonly source: string;
+  readonly url: string;
+  readonly published: string | null;
+}
+
+export interface CalendarEvent {
+  readonly title: string;
+  readonly start: string;
+  readonly end: string;
+  readonly all_day: boolean;
+  readonly location: string;
+  readonly calendar: string;
+}
+
+export interface CalendarResponse {
+  readonly configured: boolean;
+  readonly events: readonly CalendarEvent[];
+}
+
+export interface GpuSnapshot {
+  readonly name: string;
+  readonly utilization_pct: number;
+  readonly memory_used_mb: number;
+  readonly memory_total_mb: number;
+  readonly temperature_c: number | null;
+}
+
+export interface SystemSnapshot {
+  readonly cpu_percent: number;
+  readonly memory_used_gb: number;
+  readonly memory_total_gb: number;
+  readonly gpus: readonly GpuSnapshot[];
+  readonly uptime_s: number;
+}
+
+/** Raised for non-2xx responses; `message` carries the server's explanation. */
 export class ApiError extends Error {
   override readonly name = 'ApiError';
   constructor(
@@ -46,10 +131,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { 'Content-Type': 'application/json', ...init?.headers },
   });
   if (!response.ok) {
-    throw new ApiError(response.status, `${init?.method ?? 'GET'} ${path} → ${response.status}`);
+    let detail = `${init?.method ?? 'GET'} ${path} → ${response.status}`;
+    try {
+      const body = (await response.json()) as { detail?: unknown };
+      if (typeof body.detail === 'string') detail = body.detail;
+    } catch {
+      // Non-JSON error body: keep the generic message.
+    }
+    throw new ApiError(response.status, detail);
   }
   return (response.status === 204 ? undefined : await response.json()) as T;
 }
+
+const put = (body: unknown): RequestInit => ({ method: 'PUT', body: JSON.stringify(body) });
 
 /** Data API of the core service. */
 export const coreApi = {
@@ -64,6 +158,23 @@ export const coreApi = {
   listMemories: () => request<Memory[]>('/api/memories'),
   deleteMemory: (id: number) => request<undefined>(`/api/memories/${id}`, { method: 'DELETE' }),
   resetVoiceprint: () => request<undefined>('/api/voiceprint', { method: 'DELETE' }),
+
+  getSettings: () => request<SettingsResponse>('/api/settings'),
+  updateSettings: (patch: Partial<RuntimeSettings>) =>
+    request<SettingsResponse>('/api/settings', put(patch)),
+  resetSettings: () => request<SettingsResponse>('/api/settings/reset', { method: 'POST' }),
+  listVoices: () => request<VoiceOption[]>('/api/voices'),
+  listModels: () => request<ModelsResponse>('/api/models'),
+
+  getUiPreference: <T>(key: string) => request<T | null>(`/api/ui-preferences/${key}`),
+  putUiPreference: (key: string, value: unknown) =>
+    request<undefined>(`/api/ui-preferences/${key}`, put(value)),
+
+  getWeather: (location = '') =>
+    request<Weather | null>(`/api/weather?location=${encodeURIComponent(location)}`),
+  getNews: (limit = 8) => request<Headline[]>(`/api/news?limit=${limit}`),
+  getCalendar: (days = 2) => request<CalendarResponse>(`/api/calendar?days=${days}`),
+  getSystem: () => request<SystemSnapshot>('/api/system'),
 };
 
 /**

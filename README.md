@@ -4,17 +4,17 @@ A personal, voice-driven AI dashboard. Say **"Hey Jarvis"** (or your own custom 
 
 The stack is **local-first and zero-cost.** Every component is free and open source and runs on your machine. There are no subscriptions, and no audio leaves the device.
 
-![Jarvis OS dashboard: a reminder just fired and the Tasks widget updated by voice](docs/assets/dashboard-v0.2.jpg)
+![Jarvis OS dashboard after a spoken morning briefing](docs/assets/dashboard-v0.3.jpg)
 
 ## Highlights
 
 - **Wake word → fixed greeting**, served from cache in under 300 ms. The greeting never goes through the LLM.
 - **Streaming answers.** Jarvis speaks the first sentence while the model is still writing the rest.
 - **It does things.** Tool calling covers tasks, spoken reminders, long-term memory, weather, encyclopedia lookups, web search, your own documents, and any MCP server.
-- **Natural turn-taking.** Interrupt by saying the wake word (or just talking), push-to-talk with Ctrl+Space, and earcons that tell you when it is listening.
+- **Natural turn-taking.** Interrupt by saying the wake word or by just talking (echo-aware, even through speakers), push-to-talk with Ctrl+Space or Ctrl+Shift+Space system-wide, and earcons that tell you when it is listening.
 - **Answers only you** (optional). SpeechBrain voice ID with one-minute in-app enrollment.
 - **Reactive visualizer and karaoke captions**, plus a live latency readout for every turn.
-- **Modular dashboard** on a typed widget SDK. The Tasks widget is live today, and the reserved tiles wait for your mobile apps.
+- **Editable dashboard**: drag, resize and add widgets (Weather, Schedule, Tasks, News, Memory, Machine, …), a spoken **morning briefing**, a Ctrl+K **command palette**, three **themes**, **focus** and **ambient** modes, and a live **Settings** screen.
 - **Engineered properly.** Hexagonal architecture, strict typing (mypy, TypeScript), 170+ tests on fakes, CI, ten ADRs, and docs in Markdown and in code.
 
 ## Stack
@@ -31,6 +31,10 @@ The stack is **local-first and zero-cost.** Every component is free and open sou
 | Text → speech| Kokoro-82M (British voice `bm_george`)                                    |
 | Voice ID     | SpeechBrain ECAPA-TDNN (optional)                                         |
 | Knowledge    | Open-Meteo, Wikipedia, SearXNG (optional), local documents, MCP servers   |
+
+## Moving to your GPU PC
+
+Follow **[docs/guides/personal-pc-setup.md](docs/guides/personal-pc-setup.md)**: a step-by-step guide from a fresh Windows 11 install to the finished app, with a check after every step and `jarvis-doctor` to verify it all.
 
 ## Quick start
 
@@ -79,7 +83,7 @@ jarvis-os/
 
 ## Documentation
 
-- [Getting started](docs/getting-started.md)
+- [Getting started](docs/getting-started.md) · [Set up your GPU PC](docs/guides/personal-pc-setup.md) · [Using the dashboard](docs/guides/dashboard.md)
 - [Architecture overview](docs/architecture/overview.md)
 - [Voice pipeline](docs/architecture/voice-pipeline.md), [brain, tools and memory](docs/architecture/brain.md), and [protocol and REST API](docs/architecture/voice-protocol.md)
 - [Configuration reference](docs/configuration.md)

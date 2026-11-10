@@ -14,6 +14,7 @@ export default defineWidget({
     description: 'Open tasks and upcoming reminders — editable by voice or by hand.',
     version: '1.0.0',
     defaultSize: { cols: 2, rows: 3 },
+    minRows: 2,
     source: { kind: 'builtin' },
     permissions: ['network', 'voice-intents'],
     voiceIntents: ['tasks.add', 'tasks.list', 'tasks.complete', 'reminders.add'],

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Sequence
 from datetime import datetime
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from jarvis_core.domain.events import VoiceEvent
 from jarvis_core.domain.models import (
@@ -24,12 +24,15 @@ from jarvis_core.domain.models import (
     ToolSpec,
 )
 from jarvis_core.domain.records import (
+    CalendarEvent,
     DocumentHit,
+    Headline,
     KnowledgeArticle,
     MemoryRecord,
     Reminder,
     SearchResult,
     StoredMemory,
+    SystemStatus,
     Task,
     WeatherReport,
 )
@@ -244,6 +247,44 @@ class DocumentSearch(Protocol):
         ...
 
 
+class NewsProvider(Protocol):
+    """Headlines from RSS/Atom feeds."""
+
+    async def headlines(self, feeds: Sequence[str], limit: int = 10) -> list[Headline]:
+        """Newest headlines across ``feeds``."""
+        ...
+
+
+class CalendarProvider(Protocol):
+    """Events from iCalendar (ICS) sources."""
+
+    async def events(
+        self, sources: Sequence[str], start: datetime, end: datetime
+    ) -> list[CalendarEvent]:
+        """Event occurrences overlapping ``[start, end)``, soonest first."""
+        ...
+
+
+class SystemMonitor(Protocol):
+    """Host load (CPU, memory, GPU)."""
+
+    async def status(self) -> SystemStatus:
+        """Current snapshot."""
+        ...
+
+
+class PreferenceStore(Protocol):
+    """Small JSON documents keyed by name (UI layout, runtime settings, …)."""
+
+    async def get(self, key: str) -> Any | None:
+        """The stored value, or ``None``."""
+        ...
+
+    async def set(self, key: str, value: Any) -> None:
+        """Store ``value`` (must be JSON-serialisable)."""
+        ...
+
+
 # ------------------------------------------------------------ capabilities
 
 
@@ -253,6 +294,33 @@ class SupportsWarmUp(Protocol):
 
     async def warm_up(self) -> None:
         """Load models / open connections so the first request is fast."""
+        ...
+
+
+@runtime_checkable
+class SupportsModelSwitch(Protocol):
+    """Optional capability: a language model whose model can change at runtime."""
+
+    @property
+    def model(self) -> str:
+        """The model in use."""
+        ...
+
+    def set_model(self, model: str) -> None:
+        """Switch to ``model`` for subsequent requests."""
+        ...
+
+    async def list_models(self) -> list[str]:
+        """Models available to switch to."""
+        ...
+
+
+@runtime_checkable
+class SupportsVoiceConfig(Protocol):
+    """Optional capability: a TTS engine whose voice can change at runtime."""
+
+    def configure(self, *, voice: str, speed: float) -> None:
+        """Use ``voice`` at ``speed`` for subsequent synthesis."""
         ...
 
 

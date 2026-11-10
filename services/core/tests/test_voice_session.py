@@ -84,7 +84,6 @@ class Harness:
             stt=self.stt,
             tts=self.tts,
             wake=self.wake,
-            barge_vad=FakeVad(),
             speaker=speaker,
             config=SessionConfig(
                 listen_timeout_ms=800,
@@ -300,21 +299,42 @@ async def test_barge_in_while_thinking() -> None:
     assert h.sink.of_type(TurnCompleted) == []
 
 
-async def test_voice_barge_in_needs_sustained_speech() -> None:
+async def test_client_signalled_voice_barge_in() -> None:
     h = Harness(barge_in="voice")
     await _speaking(h)
-    await h.session.handle_audio(SPEECH)
-    await h.session.handle_audio(SILENCE)  # a blip: streak resets
-    await h.session.handle_audio(SPEECH)
-    await h.session.handle_audio(SPEECH)
+    # Raw speech while Jarvis talks is NOT enough on its own (it may be echo)…
+    for _ in range(6):
+        await h.session.handle_audio(SPEECH)
     assert h.state() is AssistantState.SPEAKING
-    await h.session.handle_audio(SPEECH)
+    # …the client's echo-aware detector decides, then streams the buffered words.
+    await h.session.handle_barge_in()
     assert h.state() is AssistantState.LISTENING
     assert h.sink.of_type(Interrupted)
-    # The words that triggered barge-in are already part of the new request.
-    for _ in range(4):
-        await h.session.handle_audio(SILENCE)
+    await h.speak()
     await wait_until(lambda: len(h.sink.of_type(TranscriptReady)) == 2)
+
+
+async def test_client_barge_in_ignored_unless_voice_mode() -> None:
+    h = Harness(barge_in="wake_word")
+    await _speaking(h)
+    await h.session.handle_barge_in()
+    assert h.state() is AssistantState.SPEAKING
+
+
+async def test_wake_word_still_interrupts_in_voice_mode() -> None:
+    h = Harness(barge_in="voice")
+    await _speaking(h)
+    await h.session.handle_audio(WAKE)
+    assert h.state() is AssistantState.LISTENING
+
+
+async def test_apply_config_changes_behaviour_live() -> None:
+    h = Harness(follow_up_ms=0)
+    h.session.apply_config(SessionConfig(listen_timeout_ms=800, follow_up_ms=3_000))
+    await h.session.handle_text_query("hello")
+    await wait_until(lambda: bool(h.sink.of_type(TurnCompleted)))
+    await h.finish_playback()
+    assert h.state() is AssistantState.LISTENING  # follow-up mode now on
 
 
 async def test_barge_in_off_ignores_wake_word_while_speaking() -> None:

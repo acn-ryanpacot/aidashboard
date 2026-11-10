@@ -47,6 +47,9 @@ The system prompt also keeps a stable prefix (date and part of day only, with va
 | `lookup_encyclopedia` | Background facts                                | Wikipedia REST API (free)       |
 | `web_search`          | Current events (optional)                       | Your own SearXNG instance       |
 | `search_documents`    | Answers from your own notes (optional)          | Local folder index (RAG)        |
+| `get_headlines`       | Latest news, optionally about a topic           | RSS/Atom feeds (Settings)       |
+| `get_schedule`        | Calendar events for a day                       | ICS calendars (Settings)        |
+| `daily_briefing`      | Everything for a morning briefing               | All of the above                |
 | `<server>__<tool>`    | Anything an MCP server offers (optional)        | [MCP](../guides/mcp.md)         |
 
 Tools that change data (tasks, reminders, memories) broadcast `data_changed`, so the dashboard widgets refresh instantly, whether the change came from voice, the UI or the REST API.

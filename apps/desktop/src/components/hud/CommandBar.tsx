@@ -3,9 +3,11 @@ import { type FormEvent, useEffect, useRef, useState } from 'react';
 
 import { useAssistant, useVoiceAssistant } from '../../core/voice/hooks';
 import { cn } from '../../lib/cn';
+import { useUi } from '../../state/uiStore';
 
 /**
- * Text input for typed questions. `Ctrl/⌘ + K` focuses it; `Esc` stops Jarvis.
+ * Text input for typed questions. `Esc` stops Jarvis (Ctrl/⌘ + K opens the
+ * command palette, which can also ask questions).
  */
 export function CommandBar() {
   const assistant = useVoiceAssistant();
@@ -17,12 +19,7 @@ export function CommandBar() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        inputRef.current?.focus();
-      } else if (event.key === 'Escape') {
-        assistant.cancel();
-      }
+      if (event.key === 'Escape' && useUi.getState().overlay === 'none') assistant.cancel();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -49,7 +46,6 @@ export function CommandBar() {
         className="h-10 flex-1 bg-transparent text-[15px] text-white/90 placeholder:text-white/30 focus:outline-none disabled:cursor-not-allowed"
         aria-label="Ask Jarvis"
       />
-      <kbd className="hidden font-mono text-[10px] text-white/25 sm:block">Ctrl K</kbd>
       {busy ? (
         <button
           type="button"

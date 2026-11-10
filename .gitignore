@@ -39,3 +39,8 @@ models/
 .idea/
 .DS_Store
 Thumbs.db
+
+# PyInstaller sidecar build output
+apps/desktop/src-tauri/binaries/
+services/core/build/
+services/core/dist/

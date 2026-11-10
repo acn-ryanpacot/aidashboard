@@ -41,7 +41,7 @@ from jarvis_core.domain.events import (
 )
 from jarvis_core.domain.models import AssistantState
 
-PROTOCOL_VERSION = 2
+PROTOCOL_VERSION = 3
 
 
 class _Message(BaseModel):
@@ -83,6 +83,12 @@ class CancelMessage(_Message):
     type: Literal["cancel"]
 
 
+class BargeInMessage(_Message):
+    """The client's echo-aware detector heard the user talking over Jarvis."""
+
+    type: Literal["barge_in"]
+
+
 class EnrollVoiceMessage(_Message):
     """Start recording samples for voice ID."""
 
@@ -95,6 +101,7 @@ ClientMessage = Annotated[
     | TextQueryMessage
     | PlaybackEndedMessage
     | CancelMessage
+    | BargeInMessage
     | EnrollVoiceMessage,
     Field(discriminator="type"),
 ]
@@ -116,6 +123,7 @@ class ReadyMessage(_Message):
     speech_input_enabled: bool
     speech_output_enabled: bool
     barge_in: str
+    barge_in_min_speech_ms: int
     speaker_verification_enabled: bool
     speaker_enrolled: bool
     tools: list[str]

@@ -46,6 +46,8 @@ export interface WidgetManifest {
   readonly version: string;
   /** Default footprint. */
   readonly defaultSize: WidgetSize;
+  /** Smallest height (rows) at which the widget still reads well. Defaults to 1. */
+  readonly minRows?: WidgetSize['rows'];
   /** Data origin. */
   readonly source: WidgetSource;
   /** Requested capabilities. */
@@ -83,6 +85,9 @@ export function validateManifest(manifest: WidgetManifest): string[] {
   const { cols, rows } = manifest.defaultSize;
   if (![1, 2].includes(cols)) problems.push(`defaultSize.cols must be 1 or 2, got ${cols}`);
   if (![1, 2, 3, 4].includes(rows)) problems.push(`defaultSize.rows must be 1–4, got ${rows}`);
+  if (manifest.minRows !== undefined && manifest.minRows > rows) {
+    problems.push(`minRows (${manifest.minRows}) must not exceed defaultSize.rows (${rows})`);
+  }
   if (manifest.source.kind === 'mobile-app') {
     if (!manifest.source.appId.trim()) problems.push('source.appId must not be empty');
     if (!manifest.source.endpoint.startsWith('/api/')) {

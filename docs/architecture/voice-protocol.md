@@ -1,6 +1,6 @@
 # Voice protocol (`/ws/voice`)
 
-Version **2**. Sources of truth: `services/core/src/jarvis_core/api/protocol.py` (Pydantic) and its TypeScript mirror `apps/desktop/src/core/voice/protocol.ts`. **Change both together.**
+Version **3**. Sources of truth: `services/core/src/jarvis_core/api/protocol.py` (Pydantic) and its TypeScript mirror `apps/desktop/src/core/voice/protocol.ts`. **Change both together.**
 
 ## Transport
 
@@ -18,6 +18,7 @@ Version **2**. Sources of truth: `services/core/src/jarvis_core/api/protocol.py`
 | text   | `{"type":"text_query","text":"…"}`                 | Typed question (1–4000 chars)                 |
 | text   | `{"type":"playback_ended","segment_id":"seg-3"}`   | A speech segment finished playing             |
 | text   | `{"type":"cancel"}`                                | Stop (also cancels enrollment)                |
+| text   | `{"type":"barge_in"}`                              | The client's echo-aware detector heard the user talk over Jarvis (`voice` mode) |
 | text   | `{"type":"enroll_voice"}`                          | Start voice-ID enrollment                     |
 
 When to send audio (`wantsAudio()` in the UI):
@@ -30,7 +31,7 @@ When to send audio (`wantsAudio()` in the UI):
 
 | `type`             | Fields                                                                           |
 | ------------------ | -------------------------------------------------------------------------------- |
-| `ready`            | `protocol_version`, `assistant_name`, `user_name`, `wake_word_enabled`, `wake_model`, `speech_input_enabled`, `speech_output_enabled`, `barge_in`, `speaker_verification_enabled`, `speaker_enrolled`, `tools[]`, `input_sample_rate`, `input_frame_samples` |
+| `ready`            | `protocol_version`, `assistant_name`, `user_name`, `wake_word_enabled`, `wake_model`, `speech_input_enabled`, `speech_output_enabled`, `barge_in`, `barge_in_min_speech_ms`, `speaker_verification_enabled`, `speaker_enrolled`, `tools[]`, `input_sample_rate`, `input_frame_samples` |
 | `state`            | `state`: `idle` \| `listening` \| `thinking` \| `speaking`                       |
 | `wake`             | (none)                                                                           |
 | `interrupted`      | (none). **Stop playback immediately**                                            |
@@ -43,7 +44,7 @@ When to send audio (`wantsAudio()` in the UI):
 | `speaker_rejected` | `score`: similarity of the ignored voice                                         |
 | `enrollment`       | `status` (`recording`\|`complete`\|`cancelled`\|`failed`), `collected`, `required` |
 | `notification`     | `kind` (e.g. `reminder`), `text`                                                 |
-| `data_changed`     | `topic` (`tasks`, `reminders`, `memories`, `voiceprint`)                         |
+| `data_changed`     | `topic` (`tasks`, `reminders`, `memories`, `voiceprint`, `settings`, `ui:<key>`)                         |
 | `error`            | `message`: safe to show the user                                                 |
 
 ## Example: a tool-using turn
@@ -76,6 +77,13 @@ When to send audio (`wantsAudio()` in the UI):
 | `GET /api/memories`        | Audit long-term memory                   |
 | `DELETE /api/memories/{id}` | Forget                                  |
 | `DELETE /api/voiceprint`   | Remove the enrolled voice                |
+| `GET/PUT /api/settings`, `POST /api/settings/reset` | Live settings (values + defaults) |
+| `GET /api/voices`, `GET /api/models` | Choices for Settings |
+| `GET/PUT /api/ui-preferences/{key}` | UI documents, e.g. the dashboard `layout` |
+| `GET /api/weather?location=` | Current weather (home location by default) |
+| `GET /api/news?limit=` | Headlines from the configured feeds |
+| `GET /api/calendar?days=` | Upcoming events (`configured: false` if none connected) |
+| `GET /api/system` | CPU, RAM, GPU load |
 
 Interactive OpenAPI docs: <http://127.0.0.1:8765/docs>. Every mutation broadcasts `data_changed` to all WebSocket clients.
 
@@ -83,4 +91,5 @@ Interactive OpenAPI docs: <http://127.0.0.1:8765/docs>. Every mutation broadcast
 
 - Clients **must ignore unknown message types**.
 - Adding optional fields or new message types is a minor change. Removing or renaming anything requires bumping `PROTOCOL_VERSION`.
+- v2 → v3: added the `barge_in` client message and `ready.barge_in_min_speech_ms`.
 - v1 → v2: added `listen`, `enroll_voice`, `interrupted`, `tool`, `metrics`, `speaker_rejected`, `enrollment`, `notification`, `data_changed`, the `announcement` segment kind and new `ready` fields.

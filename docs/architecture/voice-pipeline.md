@@ -75,7 +75,7 @@ While Jarvis is **thinking or speaking**, the UI keeps streaming the mic so you 
 | `JARVIS_BARGE_IN` | Trigger | Notes |
 | --- | --- | --- |
 | `wake_word` (default) | Say the wake word again | Robust: Jarvis's own voice rarely contains "Hey Jarvis" |
-| `voice` | Speak for ≥ `JARVIS_BARGE_IN_MIN_SPEECH_MS` (400 ms) | Natural, but needs good echo cancellation (headset, or a speaker far from the mic) |
+| `voice` | Speak over Jarvis for ≥ `JARVIS_BARGE_IN_MIN_SPEECH_MS` (400 ms) | The client's echo-aware detector learns how much of Jarvis leaks into the mic and fires only when you are clearly louder ([ADR-0013](../adr/0013-echo-aware-barge-in.md)); the wake word also works |
 | `off` | — | Use Esc or the stop button |
 
 On barge-in, the session cancels generation, sends `interrupted` (the UI stops playback at once) and starts listening. In `voice` mode, the speech that triggered the interruption is already part of the new request.

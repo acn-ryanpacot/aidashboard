@@ -26,6 +26,17 @@ class GreetingCache:
         self._speech: SynthesizedSpeech | None = None
         self._lock = asyncio.Lock()
 
+    def set_text(self, text: str) -> None:
+        """Change the phrase (e.g. the user's name changed); re-synthesised on next use."""
+        if text != self.text:
+            self.text = text
+            self._speech = None
+
+    def set_engine(self, tts: TextToSpeech | None) -> None:
+        """Invalidate the cached audio after the voice changed."""
+        self._tts = tts
+        self._speech = None
+
     async def get(self) -> SynthesizedSpeech | None:
         """Return the cached greeting audio (synthesising it on first use)."""
         if self._tts is None:

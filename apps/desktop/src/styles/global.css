@@ -27,6 +27,79 @@
   --color-signal-red: #ff5c7a;
 }
 
+/*
+ * Themes. Tailwind utilities reference these variables, so redefining them
+ * restyles everything. `--accent-rgb` / `--glow-rgb` are space-separated RGB
+ * triplets for rgb(var(--x) / alpha) in hand-written CSS.
+ */
+:root {
+  --accent-rgb: 94 231 255;
+  --glow-rgb: 34 211 245;
+  --thinking-rgb: 255 196 92;
+}
+
+:root[data-theme='stark'] {
+  --color-arc-50: #fff8ea;
+  --color-arc-100: #ffefcc;
+  --color-arc-200: #ffe1a3;
+  --color-arc-300: #ffd27a;
+  --color-arc-400: #ffc45c;
+  --color-arc-500: #f5a524;
+  --color-arc-600: #c77d0e;
+  --color-arc-900: #3f2a08;
+  --color-gold-400: #ff6b5c;
+  --accent-rgb: 255 196 92;
+  --glow-rgb: 255 92 72;
+  --thinking-rgb: 255 107 92;
+}
+
+:root[data-theme='stealth'] {
+  --color-arc-50: #ffffff;
+  --color-arc-100: #f5f6f8;
+  --color-arc-200: #eceef2;
+  --color-arc-300: #dadee4;
+  --color-arc-400: #c3c8d0;
+  --color-arc-500: #a2a9b4;
+  --color-arc-600: #7c8490;
+  --color-arc-900: #2a2e35;
+  --color-gold-400: #e2e4e8;
+  --accent-rgb: 195 200 208;
+  --glow-rgb: 150 156 168;
+  --thinking-rgb: 226 228 232;
+}
+
+/* Swatches in Settings → Appearance preview each theme's accent. */
+[data-theme-preview='arctic'] .theme-swatch {
+  background: linear-gradient(90deg, #5ee7ff, #22d3f5);
+}
+[data-theme-preview='stark'] .theme-swatch {
+  background: linear-gradient(90deg, #ffc45c, #ff5c48);
+}
+[data-theme-preview='stealth'] .theme-swatch {
+  background: linear-gradient(90deg, #eceef2, #7c8490);
+}
+
+/* Ambient mode: a slowly breathing core above the clock. */
+.ambient-orb {
+  width: 96px;
+  height: 96px;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    rgb(255 255 255 / 0.9) 0%,
+    rgb(var(--accent-rgb) / 0.8) 18%,
+    rgb(var(--glow-rgb) / 0.25) 45%,
+    transparent 70%
+  );
+  box-shadow: 0 0 120px 20px rgb(var(--glow-rgb) / 0.12);
+  animation: breathe 6s ease-in-out infinite;
+  opacity: 0.7;
+}
+
+.ambient-colon {
+  animation: blink 2s steps(2, start) infinite;
+}
+
 @layer base {
   html,
   body,
@@ -42,7 +115,7 @@
   }
 
   ::selection {
-    background: rgb(94 231 255 / 0.3);
+    background: rgb(var(--accent-rgb) / 0.3);
   }
 }
 
@@ -52,9 +125,9 @@
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(60% 55% at 50% 45%, rgb(34 211 245 / 0.09), transparent 70%),
+    radial-gradient(60% 55% at 50% 45%, rgb(var(--glow-rgb) / 0.09), transparent 70%),
     radial-gradient(40% 40% at 85% 10%, rgb(99 102 241 / 0.06), transparent 70%),
-    radial-gradient(35% 35% at 10% 90%, rgb(34 211 245 / 0.05), transparent 70%),
+    radial-gradient(35% 35% at 10% 90%, rgb(var(--glow-rgb) / 0.05), transparent 70%),
     linear-gradient(180deg, #050810 0%, #04060b 60%, #030409 100%);
 }
 
@@ -134,7 +207,7 @@
   height: 1em;
   margin-left: 0.15em;
   vertical-align: -0.12em;
-  background: rgb(94 231 255 / 0.8);
+  background: rgb(var(--accent-rgb) / 0.8);
   animation: blink 1s steps(2, start) infinite;
 }
 
@@ -147,23 +220,23 @@
     radial-gradient(
       circle at 50% 50%,
       #fff 0%,
-      #8cecff 14%,
-      rgb(34 211 245 / 0.35) 38%,
+      var(--color-arc-300) 14%,
+      rgb(var(--glow-rgb) / 0.35) 38%,
       transparent 62%
     ),
-    radial-gradient(circle, transparent 64%, rgb(94 231 255 / 0.4) 65%, transparent 66.5%),
-    radial-gradient(circle, transparent 78%, rgb(94 231 255 / 0.18) 79%, transparent 80%);
+    radial-gradient(circle, transparent 64%, rgb(var(--accent-rgb) / 0.4) 65%, transparent 66.5%),
+    radial-gradient(circle, transparent 78%, rgb(var(--accent-rgb) / 0.18) 79%, transparent 80%);
   box-shadow:
-    0 0 80px 10px rgb(34 211 245 / 0.25),
-    0 0 220px 40px rgb(34 211 245 / 0.08);
+    0 0 80px 10px rgb(var(--glow-rgb) / 0.25),
+    0 0 220px 40px rgb(var(--glow-rgb) / 0.08);
   animation: breathe 4s ease-in-out infinite;
 }
 
 .engage-button {
-  background: linear-gradient(180deg, #b5f5ff, #5ee7ff);
+  background: linear-gradient(180deg, var(--color-arc-200), var(--color-arc-400));
   box-shadow:
     0 0 0 1px rgb(255 255 255 / 0.25) inset,
-    0 10px 40px -8px rgb(94 231 255 / 0.65);
+    0 10px 40px -8px rgb(var(--accent-rgb) / 0.65);
   transition:
     transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 200ms;
@@ -173,7 +246,7 @@
   transform: translateY(-1px);
   box-shadow:
     0 0 0 1px rgb(255 255 255 / 0.35) inset,
-    0 14px 50px -8px rgb(94 231 255 / 0.85);
+    0 14px 50px -8px rgb(var(--accent-rgb) / 0.85);
 }
 
 .engage-button:disabled {

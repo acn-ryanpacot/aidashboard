@@ -72,6 +72,20 @@ class Brain:
         """The persona in use."""
         return self._persona
 
+    def set_persona(self, persona: Persona) -> None:
+        """Switch persona (name or style changed in Settings)."""
+        self._persona = persona
+
+    async def compose(self, request: str) -> str:
+        """One-shot generation without history or tools (e.g. a scheduled briefing)."""
+        messages = [self._persona.system_message(), ChatMessage(Role.USER, request)]
+        parts = [
+            event.text
+            async for event in self._llm.stream_chat(messages)
+            if isinstance(event, TextDelta)
+        ]
+        return "".join(parts).strip()
+
     async def respond(
         self, history: Sequence[ChatMessage], request: str
     ) -> AsyncIterator[BrainEvent]:

@@ -1,6 +1,6 @@
 [project]
 name = "jarvis-core"
-version = "0.2.0"
+version = "0.3.0"
 description = "Jarvis OS core service: voice pipeline, AI brain and widget host."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -12,6 +12,9 @@ dependencies = [
   "httpx>=0.27",
   "numpy>=1.26",
   "structlog>=24.1",
+  "psutil>=6.0",
+  "icalendar>=6.0",
+  "recurring-ical-events>=3.3",
 ]
 
 [project.optional-dependencies]
@@ -28,9 +31,15 @@ voice = [
 speaker = ["speechbrain>=1.0"]
 # Model Context Protocol client for external tool servers.
 mcp = ["mcp>=1.2"]
+# PyTorch build for the speech models. Pick ONE (they conflict):
+#   NVIDIA GPU:  uv sync --extra voice --extra cu128
+#   CPU only:    uv sync --extra voice --extra cpu
+cu128 = ["torch>=2.7", "torchaudio>=2.7"]
+cpu = ["torch>=2.7", "torchaudio>=2.7"]
 
 [project.scripts]
 jarvis-core = "jarvis_core.__main__:main"
+jarvis-doctor = "jarvis_core.doctor:main"
 
 [dependency-groups]
 dev = [
@@ -40,6 +49,29 @@ dev = [
   "ruff>=0.8",
   "mypy>=1.13",
 ]
+
+[tool.uv]
+conflicts = [[{ extra = "cpu" }, { extra = "cu128" }]]
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cpu", extra = "cpu" },
+  { index = "pytorch-cu128", extra = "cu128" },
+]
+torchaudio = [
+  { index = "pytorch-cpu", extra = "cpu" },
+  { index = "pytorch-cu128", extra = "cu128" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
 
 [build-system]
 requires = ["hatchling>=1.25"]
@@ -73,11 +105,15 @@ ignore = [
   "D107",  # __init__ docstrings: constructor args are documented on the class
 ]
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's parameter markers are designed to be used as defaults.
+extend-immutable-calls = ["fastapi.Body", "fastapi.Query", "fastapi.Path", "fastapi.Depends"]
+
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["D", "ASYNC109", "ASYNC110"]
+"tests/**" = ["D", "ASYNC109", "ASYNC110", "E501"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -90,6 +126,7 @@ plugins = ["pydantic.mypy"]
 module = [
   "faster_whisper.*", "openwakeword.*", "kokoro.*", "webrtcvad.*",
   "torch.*", "silero_vad.*", "speechbrain.*", "mcp.*",
+  "icalendar.*", "recurring_ical_events.*", "psutil.*", "ctranslate2.*",
 ]
 ignore_missing_imports = true
 

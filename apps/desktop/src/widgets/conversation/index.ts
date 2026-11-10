@@ -9,6 +9,7 @@ export default defineWidget({
     description: 'Transcript of what you and Jarvis have said this session.',
     version: '1.0.0',
     defaultSize: { cols: 2, rows: 4 },
+    minRows: 2,
     source: { kind: 'builtin' },
   },
   component: ConversationWidget,

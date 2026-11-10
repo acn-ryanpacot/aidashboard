@@ -25,6 +25,10 @@ class SessionHub:
     def __len__(self) -> int:
         return len(self._sessions)
 
+    def sessions(self) -> list[VoiceSession]:
+        """The currently connected sessions."""
+        return list(self._sessions)
+
     def register(self, session: VoiceSession, sink: VoiceEventSink) -> None:
         """Start delivering broadcasts to ``session``."""
         self._sessions[session] = sink

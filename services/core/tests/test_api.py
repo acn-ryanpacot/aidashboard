@@ -19,10 +19,13 @@ from jarvis_core.config import Settings
 from jarvis_core.container import Container, assemble
 from jarvis_core.domain.models import ToolCall
 from tests.fakes import (
+    FakeCalendar,
     FakeEmbedder,
     FakeLlm,
+    FakeNews,
     FakeSpeakerEncoder,
     FakeStt,
+    FakeSystem,
     FakeTts,
     FakeVad,
     FakeWake,
@@ -43,6 +46,9 @@ def make_container(llm: FakeLlm | None = None) -> Container:
         wake_factory=FakeWake,
         embedder=FakeEmbedder(),
         weather=FakeWeather(),
+        news=FakeNews(),
+        calendar=FakeCalendar(),
+        system=FakeSystem(),
         speaker_encoder=FakeSpeakerEncoder(),
         voiceprints=MemoryVoiceprintStore(),
     )
@@ -80,7 +86,7 @@ def receive_until(ws: WebSocketTestSession, message_type: str) -> list[dict[str,
 
 def test_health_reports_capabilities(client: TestClient) -> None:
     body = client.get("/api/health").json()
-    assert body["status"] == "ok" and body["version"] == "0.2.0"
+    assert body["status"] == "ok" and body["version"] == "0.3.0"
     assert body["wake_word"] and body["speech_input"] and body["speech_output"]
     assert body["memory"] and body["speaker_verification"] and not body["speaker_enrolled"]
     assert {"get_current_time", "add_task", "set_reminder", "remember", "get_weather"} <= set(
@@ -137,7 +143,7 @@ def test_voiceprint_reset(client: TestClient) -> None:
 def test_handshake_then_idle(client: TestClient) -> None:
     with client.websocket_connect("/ws/voice") as ws:
         ready = receive_json(ws)
-        assert ready["type"] == "ready" and ready["protocol_version"] == 2
+        assert ready["type"] == "ready" and ready["protocol_version"] == 3
         assert ready["user_name"] == "Ryan"
         assert ready["barge_in"] == "wake_word"
         assert ready["speaker_verification_enabled"] and not ready["speaker_enrolled"]
@@ -230,3 +236,81 @@ def test_foreign_origin_is_rejected(client: TestClient) -> None:
         client.websocket_connect("/ws/voice", headers={"origin": "https://evil.example"}) as ws,
     ):
         ws.receive_text()
+
+
+# ---------------------------------------------------------- dashboard API
+
+
+def test_settings_get_update_and_live_apply(container: Container, client: TestClient) -> None:
+    body = client.get("/api/settings").json()
+    assert body["values"]["user_name"] == "Ryan" and body["defaults"]["tts_voice"] == "bm_george"
+
+    updated = client.put("/api/settings", json={"user_name": "Tony", "persona_humour": "playful"})
+    assert updated.status_code == 200
+    assert updated.json()["values"]["user_name"] == "Tony"
+    # Applied live: greeting, persona and the next session's ready message.
+    assert container.greeting.text == "How can I help you Tony?"
+    assert container.persona.style.humour == "playful"
+    with client.websocket_connect("/ws/voice") as ws:
+        assert receive_json(ws)["user_name"] == "Tony"
+
+    bad = client.put("/api/settings", json={"briefing_time": "noon"})
+    assert bad.status_code == 400 and "briefing_time" in bad.json()["detail"]
+    assert client.post("/api/settings/reset").json()["values"]["user_name"] == "Ryan"
+
+
+def test_voice_and_model_switching(container: Container, client: TestClient) -> None:
+    voices = client.get("/api/voices").json()
+    assert {"id": "bm_george", "label": "George, British male"} in voices
+    assert client.get("/api/models").json() == {
+        "current": "llama3.2:3b",
+        "available": ["fake:1b", "fake:8b", "llama3.2:3b"],
+    }
+
+    client.put("/api/settings", json={"tts_voice": "bf_emma", "llm_model": "fake:8b"})
+    assert container.tts is not None
+    assert getattr(container.tts, "voice", None) == "bf_emma"
+    assert getattr(container.llm, "model", None) == "fake:8b"
+
+
+def test_settings_change_reaches_open_sessions(client: TestClient) -> None:
+    with client.websocket_connect("/ws/voice") as ws:
+        receive_until(ws, "state")
+        client.put("/api/settings", json={"follow_up_ms": 0})
+        assert receive_json(ws) == {"type": "data_changed", "topic": "settings"}
+
+
+def test_ui_preferences_round_trip(client: TestClient) -> None:
+    assert client.get("/api/ui-preferences/layout").json() is None
+    layout = {"zones": {"left": ["clock"], "right": []}}
+    assert client.put("/api/ui-preferences/layout", json=layout).status_code == 204
+    assert client.get("/api/ui-preferences/layout").json() == layout
+    assert client.get("/api/ui-preferences/Bad Key").status_code == 422
+
+
+def test_weather_news_calendar_system_endpoints(container: Container, client: TestClient) -> None:
+    assert client.get("/api/weather").json() is None  # no default location yet
+    client.put("/api/settings", json={"default_location": "Manila"})
+    assert client.get("/api/weather").json()["location"] == "Manila"
+    assert client.get("/api/weather", params={"location": "Oslo"}).json()["location"] == "Oslo"
+
+    assert [h["title"] for h in client.get("/api/news", params={"limit": 2}).json()] == [
+        "Mars rover finds water ice",
+        "Local team wins the cup",
+    ]
+    assert client.get("/api/calendar").json() == {"configured": False, "events": []}
+    client.put("/api/settings", json={"calendar_urls": ["https://cal.example/secret.ics"]})
+    assert client.get("/api/calendar").json()["configured"] is True
+
+    system = client.get("/api/system").json()
+    assert system["gpus"][0]["name"] == "RTX Test" and system["memory_total_gb"] == 32.0
+
+
+def test_client_barge_in_message(client: TestClient) -> None:
+    with client.websocket_connect("/ws/voice") as ws:
+        ready = receive_json(ws)
+        assert ready["barge_in_min_speech_ms"] == 400
+        receive_json(ws)
+        ws.send_text(json.dumps({"type": "barge_in"}))  # ignored while idle, no error
+        ws.send_text(json.dumps({"type": "listen"}))
+        assert receive_json(ws) == {"type": "state", "state": "listening"}

@@ -52,12 +52,13 @@ class OpenWakeWordDetector:
         from openwakeword.model import Model
 
         self._model = Model(wakeword_models=[model], inference_framework="onnx")
-        self._threshold = threshold
+        #: Activation score; adjustable at runtime from the Settings screen.
+        self.threshold = threshold
 
     def process(self, frame: bytes) -> bool:
         """Score one 80 ms frame."""
         scores = self._model.predict(np.frombuffer(frame, dtype="<i2"))
-        return any(float(score) >= self._threshold for score in scores.values())
+        return any(float(score) >= self.threshold for score in scores.values())
 
     def reset(self) -> None:
         """Clear the rolling feature buffer."""

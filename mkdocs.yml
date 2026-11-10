@@ -48,6 +48,7 @@ plugins:
 nav:
   - Home: index.md
   - Getting started: getting-started.md
+  - Set up your GPU PC: guides/personal-pc-setup.md
   - Configuration: configuration.md
   - Architecture:
       - Overview: architecture/overview.md
@@ -55,6 +56,7 @@ nav:
       - Brain, tools & memory: architecture/brain.md
       - Voice protocol & REST: architecture/voice-protocol.md
   - Guides:
+      - Using the dashboard: guides/dashboard.md
       - Custom wake word: guides/custom-wake-word.md
       - Voice ID: guides/voice-id.md
       - Knowledge sources: guides/web-search.md
@@ -78,3 +80,6 @@ nav:
       - adr/0009-barge-in-and-playback-watchdog.md
       - adr/0010-voice-id.md
       - adr/0011-tool-routing.md
+      - adr/0012-runtime-settings.md
+      - adr/0013-echo-aware-barge-in.md
+      - adr/0014-desktop-launches-core.md

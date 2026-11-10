@@ -17,13 +17,30 @@ import type { AssistantState } from '../../core/voice/protocol';
 
 type Rgb = readonly [number, number, number];
 
-/** Accent colour per state; the renderer cross-fades between them. */
-const STATE_COLOURS: Record<AssistantState, Rgb> = {
-  idle: [94, 231, 255],
-  listening: [120, 255, 226],
-  thinking: [255, 196, 92],
-  speaking: [150, 238, 255],
-};
+/** Accent colours per assistant state for one theme. */
+export type OrbPalette = Readonly<Record<AssistantState, Rgb>>;
+
+/** Palettes per theme (see `state/uiStore.ts`); the renderer cross-fades between states. */
+export const ORB_PALETTES = {
+  arctic: {
+    idle: [94, 231, 255],
+    listening: [120, 255, 226],
+    thinking: [255, 196, 92],
+    speaking: [150, 238, 255],
+  },
+  stark: {
+    idle: [255, 196, 92],
+    listening: [255, 222, 140],
+    thinking: [255, 96, 80],
+    speaking: [255, 208, 120],
+  },
+  stealth: {
+    idle: [196, 202, 210],
+    listening: [232, 236, 242],
+    thinking: [160, 166, 176],
+    speaking: [244, 246, 250],
+  },
+} as const satisfies Record<string, OrbPalette>;
 
 /** Overall brightness per state. */
 const STATE_INTENSITY: Record<AssistantState, number> = {
@@ -53,10 +70,16 @@ export interface OrbFrame {
 export class OrbRenderer {
   readonly #bars = new Float32Array(BAR_COUNT);
   #level = 0;
-  #colour: [number, number, number] = [...STATE_COLOURS.idle];
+  #palette: OrbPalette = ORB_PALETTES.arctic;
+  #colour: [number, number, number] = [...ORB_PALETTES.arctic.idle];
   #intensity = STATE_INTENSITY.idle;
   #spin = 0;
   #lastTime = 0;
+
+  /** Switch theme; colours glide to the new palette over the next frames. */
+  setPalette(palette: OrbPalette): void {
+    this.#palette = palette;
+  }
 
   /**
    * Draw one frame.
@@ -94,7 +117,7 @@ export class OrbRenderer {
   #update(frame: OrbFrame, dt: number): void {
     // Colour and brightness ease toward the target state (~250 ms).
     const ease = 1 - Math.exp(-dt * 9);
-    const target = STATE_COLOURS[frame.state];
+    const target = this.#palette[frame.state];
     for (let i = 0; i < 3; i++) this.#colour[i] = lerp(this.#colour[i] ?? 0, target[i] ?? 0, ease);
     this.#intensity = lerp(this.#intensity, STATE_INTENSITY[frame.state], ease);
 

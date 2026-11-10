@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from collections.abc import Sequence
 from datetime import datetime
+from typing import Any
 
 import numpy as np
 
@@ -244,3 +246,34 @@ class SqliteDocumentChunkStore:
             return [(r["path"], r["text"], _decode_vector(r["embedding"]) or ()) for r in rows]
 
         return await self._db.run(op)
+
+
+# --------------------------------------------------------------- preferences
+
+
+class SqlitePreferenceStore:
+    """Implements :class:`~jarvis_core.domain.ports.PreferenceStore`."""
+
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    async def get(self, key: str) -> Any | None:
+        """The stored JSON value for ``key``."""
+
+        def op(conn: sqlite3.Connection) -> Any | None:
+            row = conn.execute("SELECT value FROM preferences WHERE key = ?", (key,)).fetchone()
+            return json.loads(row["value"]) if row else None
+
+        return await self._db.run(op)
+
+    async def set(self, key: str, value: Any) -> None:
+        """Insert or replace ``key``."""
+        payload = json.dumps(value, separators=(",", ":"))
+        await self._db.run(
+            lambda c: c.execute(
+                "INSERT INTO preferences (key, value, updated_at) VALUES (?, ?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value, "
+                "updated_at = excluded.updated_at",
+                (key, payload, to_db_time(utc_now())),
+            )
+        )

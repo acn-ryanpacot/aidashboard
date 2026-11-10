@@ -129,3 +129,56 @@ class DocumentHit:
     path: str
     text: str
     score: float
+
+
+@dataclass(frozen=True, slots=True)
+class Headline:
+    """A news headline from an RSS/Atom feed."""
+
+    title: str
+    source: str
+    url: str
+    published: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CalendarEvent:
+    """One occurrence of a calendar event (recurrences are expanded).
+
+    Attributes:
+        title: Summary line.
+        start: Start (timezone-aware; midnight local time for all-day events).
+        end: End (timezone-aware).
+        all_day: Whether this is a date-only event.
+        location: Free-text location, if any.
+        calendar: Name of the source calendar.
+    """
+
+    title: str
+    start: datetime
+    end: datetime
+    all_day: bool = False
+    location: str = ""
+    calendar: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class GpuStatus:
+    """Utilisation of one GPU (from ``nvidia-smi``)."""
+
+    name: str
+    utilization_pct: float
+    memory_used_mb: float
+    memory_total_mb: float
+    temperature_c: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SystemStatus:
+    """A snapshot of the host machine's load."""
+
+    cpu_percent: float
+    memory_used_gb: float
+    memory_total_gb: float
+    gpus: tuple[GpuStatus, ...] = ()
+    uptime_s: float = 0.0

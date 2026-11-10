@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 
 import { useAssistant, useVoiceAssistant } from '../../core/voice/hooks';
-import { OrbRenderer } from './orbRenderer';
+import { useUi } from '../../state/uiStore';
+import { ORB_PALETTES, OrbRenderer } from './orbRenderer';
 
 const STATE_LABEL = {
   idle: 'Standby',
@@ -17,7 +18,13 @@ const STATE_LABEL = {
 export function Orb() {
   const assistant = useVoiceAssistant();
   const state = useAssistant((s) => s.state);
+  const theme = useUi((s) => s.theme);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rendererRef = useRef<OrbRenderer | null>(null);
+
+  useEffect(() => {
+    rendererRef.current?.setPalette(ORB_PALETTES[theme]);
+  }, [theme]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -25,6 +32,8 @@ export function Orb() {
     if (!canvas || !ctx) return;
 
     const renderer = new OrbRenderer();
+    renderer.setPalette(ORB_PALETTES[useUi.getState().theme]);
+    rendererRef.current = renderer;
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     let spectrum = new Uint8Array(128);
     let frameId = 0;

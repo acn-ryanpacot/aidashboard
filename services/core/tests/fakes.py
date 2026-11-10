@@ -22,9 +22,13 @@ from jarvis_core.domain.models import (
     WordTiming,
 )
 from jarvis_core.domain.records import (
+    CalendarEvent,
     DocumentHit,
+    GpuStatus,
+    Headline,
     KnowledgeArticle,
     SearchResult,
+    SystemStatus,
     WeatherReport,
 )
 
@@ -69,6 +73,14 @@ Script = Sequence[str | ToolCall]
 class FakeLlm:
     """Replays scripted rounds: call *n* of :meth:`stream_chat` plays ``rounds[n]``."""
 
+    model = "fake:1b"
+
+    def set_model(self, model: str) -> None:
+        self.model = model
+
+    async def list_models(self) -> list[str]:
+        return ["fake:1b", "fake:8b"]
+
     def __init__(
         self,
         reply: Script = ("It is ", "noon. ", "Anything else?"),
@@ -100,6 +112,9 @@ class FakeTts:
     def __init__(self, seconds: float = 0.1) -> None:
         self.spoken: list[str] = []
         self.seconds = seconds
+
+    def configure(self, *, voice: str, speed: float) -> None:
+        self.voice, self.speed = voice, speed
 
     def synthesize(self, text: str) -> SynthesizedSpeech:
         self.spoken.append(text)
@@ -208,3 +223,50 @@ class FixedClock:
 
     def __call__(self) -> datetime:
         return self.now
+
+
+# ------------------------------------------------------------ phase 4 fakes
+
+
+class FakeNews:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def headlines(self, feeds: Sequence[str], limit: int = 10) -> list[Headline]:
+        self.calls += 1
+        items = [
+            Headline("Mars rover finds water ice", "Space Daily", "https://example.org/1"),
+            Headline("Local team wins the cup", "Sports Desk", "https://example.org/2"),
+            Headline("Markets steady ahead of rate decision", "Money", "https://example.org/3"),
+        ]
+        return items[:limit] if feeds else []
+
+
+class FakeCalendar:
+    def __init__(self, events: Sequence[CalendarEvent] = ()) -> None:
+        self.items = list(events)
+        self.calls = 0
+
+    async def events(
+        self, sources: Sequence[str], start: datetime, end: datetime
+    ) -> list[CalendarEvent]:
+        self.calls += 1
+        return [e for e in self.items if e.start < end and e.end > start] if sources else []
+
+
+class FakeSystem:
+    async def status(self) -> SystemStatus:
+        return SystemStatus(
+            12.5, 7.8, 32.0, (GpuStatus("RTX Test", 40.0, 2048.0, 12288.0, 55.0),), 3600
+        )
+
+
+class MemoryPreferences:
+    def __init__(self) -> None:
+        self.data: dict[str, object] = {}
+
+    async def get(self, key: str) -> object | None:
+        return self.data.get(key)
+
+    async def set(self, key: str, value: object) -> None:
+        self.data[key] = value

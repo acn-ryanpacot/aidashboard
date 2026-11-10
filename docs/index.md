@@ -14,8 +14,14 @@ Jarvis OS is a personal operating surface: a full-screen dashboard of widgets wi
 | Answering               | A local LLM via Ollama, streamed sentence by sentence                |
 | Speaking                | Kokoro TTS with per-word timestamps                                  |
 | Looking alive           | Canvas orb driven by the live audio spectrum, plus karaoke captions  |
-| Typing instead          | Command bar (Ctrl+K). Esc interrupts                                 |
-| Dashboard               | Widget SDK + registry; Clock, Systems, Conversation, app placeholders |
+| Typing instead          | Command bar, or the Ctrl+K palette. Esc interrupts                   |
+| Dashboard               | Widget SDK + registry; editable layout, nine built-in widgets        |
+
+## Phase 4 (v0.3.0)
+
+An editable dashboard with Weather, Schedule, Briefing (news), Memory and Machine widgets; a spoken morning briefing; Ctrl+K command palette; Arctic / Stark Gold / Stealth themes; focus and ambient modes; a live Settings screen; echo-aware barge-in; and the desktop app launches the core itself.
+
+**Moving to your GPU PC?** Follow [Set up your GPU PC](guides/personal-pc-setup.md).
 
 ## Where to go next
 

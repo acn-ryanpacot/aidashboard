@@ -109,7 +109,7 @@ export function Captions() {
                       'transition-[color,text-shadow] duration-150',
                       i < caption.wordIndex && 'text-white/85',
                       i === caption.wordIndex &&
-                        'text-arc-200 [text-shadow:0_0_18px_rgb(94_231_255/0.65)]',
+                        'text-arc-200 [text-shadow:0_0_18px_rgb(var(--accent-rgb)/0.65)]',
                       i > caption.wordIndex && 'text-white/25',
                     )}
                   >

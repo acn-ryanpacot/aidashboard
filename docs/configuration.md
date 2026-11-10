@@ -2,6 +2,10 @@
 
 ## Core service
 
+!!! tip "Live settings"
+    Values marked **live** can also be changed in the dashboard's **Settings** screen, which applies them
+    immediately and stores them as overrides. `.env` provides the defaults that **Defaults** resets to.
+
 Settings are read from environment variables prefixed with `JARVIS_`, or from `services/core/.env` (start from `.env.example`). They are validated at startup by `jarvis_core.config.Settings`.
 
 ### Server
@@ -66,6 +70,7 @@ Settings are read from environment variables prefixed with `JARVIS_`, or from `s
 | `JARVIS_LLM_MODEL`       | `llama3.2:3b`             |
 | `JARVIS_LLM_TEMPERATURE` | `0.6`                     |
 | `JARVIS_LLM_TIMEOUT_S`   | `120`                     |
+| `JARVIS_LLM_THINK`       | (unset)                   |
 | `JARVIS_HISTORY_MESSAGES`| `20`                      |
 
 ### Brain: tools, memory and knowledge
@@ -92,6 +97,17 @@ Settings are read from environment variables prefixed with `JARVIS_`, or from `s
 | `JARVIS_PERSONA_VERBOSITY`     | `balanced`         | `brief`, `balanced` or `detailed`                  |
 | `JARVIS_PERSONA_HUMOUR`        | `dry`              | `none`, `dry` or `playful`                         |
 
+### Dashboard data & briefing (live)
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `JARVIS_NEWS_FEEDS` | BBC World, NPR | JSON list of RSS/Atom URLs |
+| `JARVIS_CALENDAR_URLS` | `[]` | JSON list of secret ICS addresses or `.ics` paths |
+| `JARVIS_BRIEFING_TIME` | (empty) | `HH:MM` for a daily spoken briefing |
+| `JARVIS_SYSTEM_MONITOR_ENABLED` | `true` | CPU/RAM/GPU widget (`psutil`, `nvidia-smi`) |
+
+Also live: user name, persona styles, TTS voice and speed, wake threshold, end-of-speech, listen timeout, follow-up, barge-in mode and minimum speech, voice-ID threshold, LLM model and home location.
+
 ### Storage
 
 | Variable          | Default         | Notes                                              |
@@ -106,6 +122,14 @@ Settings are read from environment variables prefixed with `JARVIS_`, or from `s
 | `JARVIS_TTS_LANG_CODE` | `b`         | `a` American, `b` British English                        |
 | `JARVIS_TTS_VOICE`     | `bm_george` | Also try `bm_lewis`, `bm_daniel`, `am_michael`           |
 | `JARVIS_TTS_SPEED`     | `1.0`       |                                                          |
+
+## Desktop app (environment variables for the installed app)
+
+| Variable | Effect |
+| --- | --- |
+| `JARVIS_CORE_AUTOSTART=0` | Don't launch the core service |
+| `JARVIS_CORE_DIR` | Checkout to launch the core from |
+| `JARVIS_CORE_COMMAND` | Exact command line to launch the core |
 
 ## Desktop UI
 

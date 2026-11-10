@@ -12,4 +12,4 @@ The package is organised as a hexagonal ("ports and adapters") architecture:
 * :mod:`jarvis_core.container` — the composition root that wires it all up.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

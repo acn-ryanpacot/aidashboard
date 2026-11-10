@@ -4,8 +4,8 @@ import { cn } from '../../lib/cn';
 export type Tone = 'ok' | 'warn' | 'error' | 'muted';
 
 const TONES: Record<Tone, string> = {
-  ok: 'bg-arc-400 shadow-[0_0_10px_rgb(94_231_255/0.8)]',
-  warn: 'bg-gold-400 shadow-[0_0_10px_rgb(255_196_92/0.7)]',
+  ok: 'bg-arc-400 shadow-[0_0_10px_rgb(var(--accent-rgb)/0.8)]',
+  warn: 'bg-gold-400 shadow-[0_0_10px_rgb(var(--thinking-rgb)/0.7)]',
   error: 'bg-signal-red shadow-[0_0_10px_rgb(255_92_122/0.7)]',
   muted: 'bg-white/20',
 };

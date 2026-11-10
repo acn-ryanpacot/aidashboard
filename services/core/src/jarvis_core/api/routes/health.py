@@ -36,11 +36,11 @@ async def health(request: Request) -> HealthResponse:
     return HealthResponse(
         status="ok",
         version=__version__,
-        llm_model=container.settings.llm_model,
+        llm_model=container.runtime.current.llm_model,
         wake_word=container.wake_factory is not None,
         speech_input=container.stt is not None,
         speech_output=container.tts is not None,
-        barge_in=container.settings.barge_in,
+        barge_in=container.runtime.current.barge_in,
         speaker_verification=speaker is not None,
         speaker_enrolled=bool(speaker and speaker.enrolled),
         memory=container.memory is not None,

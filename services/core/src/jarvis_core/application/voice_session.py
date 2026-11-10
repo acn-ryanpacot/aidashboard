@@ -42,6 +42,7 @@ import structlog
 from jarvis_core.application.brain import Brain, ToolUse
 from jarvis_core.application.conversation import ConversationHistory
 from jarvis_core.application.endpointing import (
+    EndpointingConfig,
     ListeningTimedOut,
     UtteranceComplete,
     UtteranceRecorder,
@@ -72,7 +73,6 @@ from jarvis_core.domain.models import AssistantState, AudioClip, SynthesizedSpee
 from jarvis_core.domain.ports import (
     SpeechToText,
     TextToSpeech,
-    VoiceActivityDetector,
     VoiceEventSink,
     WakeWordDetector,
 )
@@ -93,9 +93,11 @@ class SessionConfig:
         follow_up_ms: How long to keep listening after an answer without
             requiring the wake word again. ``0`` disables follow-up mode.
         barge_in: How the user can interrupt Jarvis while it thinks or talks:
-            ``wake_word`` (say it again), ``voice`` (just start talking — needs
-            good echo cancellation) or ``off``.
-        barge_in_min_speech_ms: Continuous speech needed for ``voice`` barge-in.
+            ``wake_word`` (say it again), ``voice`` (also just start talking —
+            detected by the client's echo-aware detector, which sends
+            ``barge_in``) or ``off``.
+        barge_in_min_speech_ms: Continuous speech the client requires before
+            it signals ``voice`` barge-in.
         playback_grace_ms: Extra time allowed for a client to acknowledge a
             speech segment before it is assumed finished.
         frame_ms: Duration of one audio frame.
@@ -132,7 +134,6 @@ class VoiceSession:
         stt: Speech recognition, or ``None`` for text-only mode.
         tts: Speech synthesis, or ``None`` for text-only mode.
         wake: Wake-word detector, or ``None`` to rely on manual activation.
-        barge_vad: Voice detector used for ``voice`` barge-in.
         speaker: Voice ID, or ``None`` to accept every voice.
         config: Timing behaviour.
         clock: Monotonic clock in seconds (injectable for tests).
@@ -149,7 +150,6 @@ class VoiceSession:
         stt: SpeechToText | None = None,
         tts: TextToSpeech | None = None,
         wake: WakeWordDetector | None = None,
-        barge_vad: VoiceActivityDetector | None = None,
         speaker: SpeakerVerification | None = None,
         config: SessionConfig | None = None,
         clock: Callable[[], float] = time.perf_counter,
@@ -162,7 +162,6 @@ class VoiceSession:
         self._stt = stt
         self._tts = tts
         self._wake = wake
-        self._barge_vad = barge_vad
         self._speaker = speaker
         self._config = config or SessionConfig()
         self._clock = clock
@@ -176,7 +175,6 @@ class VoiceSession:
         self._follow_up_after = True
         self._watchdogs: dict[str, asyncio.TimerHandle] = {}
         self._playback_deadline = 0.0
-        self._barge_frames: list[bytes] = []
         self._enrollment: list[list[float]] | None = None
         self._announcements: deque[tuple[str, str]] = deque(maxlen=10)
         self._background: set[asyncio.Task[Any]] = set()
@@ -289,6 +287,28 @@ class VoiceSession:
         else:
             self._announcements.append((kind, text))
 
+    async def handle_barge_in(self) -> None:
+        """The client's echo-aware detector heard the user talking over Jarvis."""
+        if self._config.barge_in != "voice" or self._enrollment is not None:
+            return
+        if self._state in (AssistantState.THINKING, AssistantState.SPEAKING):
+            log.info("barge_in", trigger="voice")
+            await self._interrupt()
+
+    def apply_config(
+        self,
+        config: SessionConfig,
+        *,
+        endpointing: EndpointingConfig | None = None,
+        wake_threshold: float | None = None,
+    ) -> None:
+        """Adopt changed settings (from the Settings screen) without reconnecting."""
+        self._config = config
+        if endpointing is not None:
+            self._recorder.configure(endpointing)
+        if wake_threshold is not None and hasattr(self._wake, "threshold"):
+            self._wake.threshold = wake_threshold  # type: ignore[union-attr]
+
     async def close(self) -> None:
         """Release resources when the client disconnects."""
         await self._stop_everything()
@@ -298,30 +318,22 @@ class VoiceSession:
     # ------------------------------------------------------------- barge-in
 
     async def _check_barge_in(self, frame: bytes) -> None:
-        mode = self._config.barge_in
-        if mode == "wake_word" and self._wake is not None and self._wake.process(frame):
+        # Saying the wake word interrupts in both "wake_word" and "voice" modes;
+        # "voice" additionally lets the client's echo-aware detector interrupt
+        # (see handle_barge_in).
+        if self._config.barge_in == "off" or self._wake is None:
+            return
+        if self._wake.process(frame):
             log.info("barge_in", trigger="wake_word")
             await self._interrupt()
-        elif mode == "voice" and self._barge_vad is not None:
-            if not self._barge_vad.is_speech(frame):
-                self._barge_frames.clear()
-                return
-            self._barge_frames.append(frame)
-            needed = self._config.barge_in_min_speech_ms // self._config.frame_ms
-            if len(self._barge_frames) >= max(1, needed):
-                seed, self._barge_frames = self._barge_frames, []
-                log.info("barge_in", trigger="voice")
-                await self._interrupt(seed)
 
-    async def _interrupt(self, seed: list[bytes] | None = None) -> None:
-        """Cut Jarvis off and listen; ``seed`` = speech already captured."""
+    async def _interrupt(self) -> None:
+        """Cut Jarvis off and listen."""
         await self._stop_everything()
         await self._sink.publish(Interrupted())
         if self._wake is not None:
             self._wake.reset()
         await self._listen(self._config.listen_timeout_ms)
-        for frame in seed or ():
-            self._recorder.push(frame)
 
     # ------------------------------------------------------------- the turn
 
@@ -551,13 +563,11 @@ class VoiceSession:
             await self._go_idle()
             return
         self._recorder.reset(timeout_ms)
-        self._barge_frames.clear()
         await self._set_state(AssistantState.LISTENING)
 
     async def _go_idle(self) -> None:
         if self._wake is not None:
             self._wake.reset()
-        self._barge_frames.clear()
         await self._set_state(AssistantState.IDLE)
         if self._announcements:
             self._spawn(self._flush_announcements())

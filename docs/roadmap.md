@@ -30,16 +30,18 @@
 
 ### Carried forward
 
-- Echo-cancelled `voice` barge-in through speakers (today a headset is recommended)
-- A Memories widget and a persona editor in the UI (the API exists)
+- ~~Echo-aware `voice` barge-in through speakers~~ (done in v0.3.0)
+- ~~A Memories widget and a persona editor in the UI~~ (done in v0.3.0)
 - Parallel tool calls
 
-## Phase 4: Dashboard
+## Phase 4: Dashboard ✅ (v0.3.0)
 
-- User-editable layout: drag and resize, persisted (react-grid-layout)
-- Built-in widgets: Weather (Open-Meteo), News (RSS), Calendar (ICS / Google), System monitor
+- User-editable layout: drag between sides, resize, add/remove; saved to the core service
+- Built-in widgets: Weather (Open-Meteo), News (RSS/Atom), Schedule (ICS: Google/Outlook/Apple), Machine monitor, Memory
 - Morning briefing: spoken summary of weather, schedule, headlines and reminders
 - Command palette, themes (Arctic, Stark Gold, Stealth), ambient/screensaver mode, focus mode
+
+Also shipped in v0.3.0 from the carried-forward list: echo-aware `voice` barge-in through speakers ([ADR-0013](adr/0013-echo-aware-barge-in.md)), a live Settings screen ([ADR-0012](adr/0012-runtime-settings.md)), a Memory widget, and the desktop app launching the core ([ADR-0014](adr/0014-desktop-launches-core.md)).
 
 ## Phase 5: Desktop integration
 

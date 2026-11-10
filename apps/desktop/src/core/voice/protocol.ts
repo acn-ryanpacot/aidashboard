@@ -1,5 +1,5 @@
 /**
- * TypeScript mirror of the `/ws/voice` wire protocol (version 2).
+ * TypeScript mirror of the `/ws/voice` wire protocol (version 3).
  *
  * Source of truth: `services/core/src/jarvis_core/api/protocol.py`.
  * Keep both files in sync (see docs/architecture/voice-protocol.md).
@@ -8,7 +8,7 @@
  */
 
 /** Protocol version this client implements. */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 /** What the assistant is doing. Drives the orb animation. */
 export type AssistantState = 'idle' | 'listening' | 'thinking' | 'speaking';
@@ -35,6 +35,8 @@ export interface ReadyMessage {
   readonly speech_input_enabled: boolean;
   readonly speech_output_enabled: boolean;
   readonly barge_in: BargeInMode;
+  /** Continuous speech the client must hear before sending `barge_in`. */
+  readonly barge_in_min_speech_ms: number;
   readonly speaker_verification_enabled: boolean;
   readonly speaker_enrolled: boolean;
   readonly tools: readonly string[];
@@ -155,6 +157,7 @@ export type ClientMessage =
   | { readonly type: 'text_query'; readonly text: string }
   | { readonly type: 'playback_ended'; readonly segment_id: string }
   | { readonly type: 'cancel' }
+  | { readonly type: 'barge_in' }
   | { readonly type: 'enroll_voice' };
 
 const SERVER_MESSAGE_TYPES = new Set<ServerMessage['type']>([

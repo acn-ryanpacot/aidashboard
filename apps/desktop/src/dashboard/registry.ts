@@ -2,7 +2,8 @@
  * The catalogue of widgets available to the dashboard.
  *
  * To add a widget: create it with `defineWidget` (see `src/widgets/*`) and
- * register it here; then place its id in {@link ./layout.ts}.
+ * register it here. It then appears in the "Add widget" gallery; add it to
+ * `DEFAULT_LAYOUT` (state/layout.ts) to show it out of the box.
  *
  * @module
  */
@@ -11,29 +12,25 @@ import { WidgetRegistry } from '@jarvis/widget-sdk';
 import clock from '../widgets/clock';
 import conversation from '../widgets/conversation';
 import coreLink from '../widgets/core-link';
-import { createAppPlaceholder } from '../widgets/placeholders/createAppPlaceholder';
+import memories from '../widgets/memories';
+import news from '../widgets/news';
+import schedule from '../widgets/schedule';
+import system from '../widgets/system';
 import tasks from '../widgets/tasks';
+import weather from '../widgets/weather';
 
 export const widgetRegistry = new WidgetRegistry()
   .register(clock)
-  .register(coreLink)
+  .register(weather)
+  .register(schedule)
   .register(conversation)
-  .register(
-    createAppPlaceholder({
-      id: 'schedule',
-      name: 'Schedule',
-      description: "Today's events from the Schedule app.",
-      appId: 'schedule',
-      intents: ['schedule.list', 'schedule.add'],
-    }),
-  )
   .register(tasks)
-  .register(
-    createAppPlaceholder({
-      id: 'news',
-      name: 'Briefing',
-      description: 'Headlines curated by the News app.',
-      appId: 'news',
-      intents: ['news.headlines'],
-    }),
-  );
+  .register(news)
+  .register(memories)
+  .register(system)
+  .register(coreLink);
+
+/** Ids of every registered widget (used to sanitise stored layouts). */
+export const KNOWN_WIDGET_IDS: ReadonlySet<string> = new Set(
+  widgetRegistry.list().map((w) => w.manifest.id),
+);

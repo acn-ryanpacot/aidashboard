@@ -20,6 +20,12 @@ describe('validateManifest', () => {
     expect(validateManifest(manifest)).toEqual([]);
   });
 
+  it('rejects a minimum larger than the default size', () => {
+    expect(validateManifest({ ...manifest, minRows: 3 })).toEqual([
+      'minRows (3) must not exceed defaultSize.rows (2)',
+    ]);
+  });
+
   it('reports every problem at once', () => {
     const problems = validateManifest({
       ...manifest,

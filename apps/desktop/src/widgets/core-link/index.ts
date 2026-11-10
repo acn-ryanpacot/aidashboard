@@ -9,6 +9,7 @@ export default defineWidget({
     description: 'Subsystem status, voice ID and last-turn latency.',
     version: '1.0.0',
     defaultSize: { cols: 2, rows: 3 },
+    minRows: 3,
     source: { kind: 'builtin' },
   },
   component: CoreLinkWidget,

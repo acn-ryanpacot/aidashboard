@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from jarvis_core.adapters.audio import encode_wav
 from jarvis_core.api.protocol import (
     ActivateMessage,
+    BargeInMessage,
     CancelMessage,
     EnrollVoiceMessage,
     ErrorMessage,
@@ -72,14 +73,16 @@ def origin_allowed(origin: str | None, allowed: list[str]) -> bool:
 def ready_message(container: Container) -> ReadyMessage:
     """Describe this server's capabilities to a new client."""
     s = container.settings
+    r = container.runtime.current
     return ReadyMessage(
         assistant_name=s.assistant_name,
-        user_name=s.user_name,
+        user_name=r.user_name,
         wake_word_enabled=container.wake_factory is not None,
         wake_model=s.wake_model if container.wake_factory else None,
         speech_input_enabled=container.stt is not None,
         speech_output_enabled=container.tts is not None,
-        barge_in=s.barge_in if container.stt is not None else "off",
+        barge_in=r.barge_in if container.stt is not None else "off",
+        barge_in_min_speech_ms=r.barge_in_min_speech_ms,
         speaker_verification_enabled=container.speaker is not None,
         speaker_enrolled=bool(container.speaker and container.speaker.enrolled),
         tools=[spec.name for spec in container.tools.specs()],
@@ -141,5 +144,7 @@ async def _dispatch(session: VoiceSession, sink: WebSocketEventSink, raw: str) -
             await session.handle_playback_ended(segment_id)
         case CancelMessage():
             await session.cancel()
+        case BargeInMessage():
+            await session.handle_barge_in()
         case EnrollVoiceMessage():
             await session.start_enrollment()

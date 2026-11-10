@@ -9,6 +9,7 @@ export default defineWidget({
     description: 'Local time, date and a greeting.',
     version: '1.0.0',
     defaultSize: { cols: 2, rows: 2 },
+    minRows: 2,
     source: { kind: 'builtin' },
   },
   component: ClockWidget,

@@ -11,13 +11,22 @@ from jarvis_core.adapters.persistence.repositories import (
     SqliteTaskRepository,
 )
 from jarvis_core.application.brain import Brain
+from jarvis_core.application.information import NewsService
 from jarvis_core.application.memory import MemoryService
 from jarvis_core.application.persona import Persona
 from jarvis_core.application.tools import builtin
 from jarvis_core.application.tools.registry import ToolRegistry
 from jarvis_core.application.tools.routing import BUILTIN_GROUPS, ToolRouter, mcp_group
 from jarvis_core.domain.models import ChatMessage, Role, ToolSpec
-from tests.fakes import FakeDocuments, FakeEmbedder, FakeKnowledge, FakeLlm, FakeSearch, FakeWeather
+from tests.fakes import (
+    FakeDocuments,
+    FakeEmbedder,
+    FakeKnowledge,
+    FakeLlm,
+    FakeNews,
+    FakeSearch,
+    FakeWeather,
+)
 
 
 def full_registry() -> ToolRegistry:
@@ -31,6 +40,7 @@ def full_registry() -> ToolRegistry:
     registry.extend(builtin.knowledge_tools(FakeKnowledge()))
     registry.extend(builtin.web_search_tools(FakeSearch()))
     registry.extend(builtin.document_tools(FakeDocuments()))
+    registry.extend(builtin.news_tools(NewsService(FakeNews(), lambda: ["https://f"])))
     return registry
 
 
@@ -62,7 +72,8 @@ def test_every_builtin_tool_belongs_to_exactly_one_group() -> None:
         ("What time is it?", {"get_current_time"}),
         ("Remember that my passport expires in March", {"remember", "recall", "forget"}),
         ("Who was Ada Lovelace?", {"lookup_encyclopedia"}),
-        ("Any news about the Mars mission?", {"web_search"}),
+        ("Any news about the Mars mission?", {"get_headlines"}),
+        ("Search the web for the latest Mars mission", {"web_search"}),
         ("What did I write in my notes about the budget?", {"search_documents"}),
     ],
 )
@@ -72,7 +83,11 @@ async def test_keyword_routing(request_text: str, expected: set[str]) -> None:
 
 @pytest.mark.parametrize(
     "request_text",
-    ["Tell me a fun fact about owls", "Good morning Jarvis", "Explain recursion like I'm five"],
+    [
+        "Tell me a fun fact about owls",
+        "Hello Jarvis, how are you?",
+        "Explain recursion like I'm five",
+    ],
 )
 async def test_chit_chat_gets_no_tools(request_text: str) -> None:
     assert await routed(request_text) == set()

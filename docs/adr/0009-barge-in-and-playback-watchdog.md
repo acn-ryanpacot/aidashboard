@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-11-10
 - Amends: [0006](0006-sentence-streaming-and-playback-acks.md)
+- `voice` mode superseded by: [0013](0013-echo-aware-barge-in.md)
 
 ## Context
 

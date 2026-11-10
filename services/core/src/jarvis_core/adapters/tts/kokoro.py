@@ -14,6 +14,22 @@ from jarvis_core.domain.models import AudioClip, SynthesizedSpeech, WordTiming
 KOKORO_SAMPLE_RATE = 24_000
 KOKORO_REPO = "hexgrad/Kokoro-82M"
 
+#: Voices offered in Settings: id → (label, language code). See the model card for more.
+KOKORO_VOICES: dict[str, tuple[str, str]] = {
+    "bm_george": ("George, British male", "b"),
+    "bm_lewis": ("Lewis, British male", "b"),
+    "bm_daniel": ("Daniel, British male", "b"),
+    "bm_fable": ("Fable, British male", "b"),
+    "bf_emma": ("Emma, British female", "b"),
+    "bf_isabella": ("Isabella, British female", "b"),
+    "am_michael": ("Michael, American male", "a"),
+    "am_adam": ("Adam, American male", "a"),
+    "am_onyx": ("Onyx, American male", "a"),
+    "af_heart": ("Heart, American female", "a"),
+    "af_bella": ("Bella, American female", "a"),
+    "af_nicole": ("Nicole, American female", "a"),
+}
+
 
 class KokoroTextToSpeech:
     """Implements :class:`~jarvis_core.domain.ports.TextToSpeech` with Kokoro-82M.
@@ -41,9 +57,27 @@ class KokoroTextToSpeech:
             from kokoro import KPipeline
         except ImportError as exc:  # pragma: no cover - depends on optional extra
             raise ConfigurationError("kokoro is not installed. Run: uv sync --extra voice") from exc
-        self._pipeline = KPipeline(lang_code=lang_code, repo_id=KOKORO_REPO, device=device)
+        self._pipeline_type = KPipeline
+        self._device = device
+        self._pipelines: dict[str, Any] = {}
+        self._lang_code = lang_code
+        self._pipeline = self._pipeline_for(lang_code)
         self._voice = voice
         self._speed = speed
+
+    def configure(self, *, voice: str, speed: float) -> None:
+        """Switch voice/speed live; the language follows the voice's prefix."""
+        lang = KOKORO_VOICES.get(voice, ("", voice[:1] or self._lang_code))[1]
+        self._pipeline = self._pipeline_for(lang)
+        self._voice = voice
+        self._speed = speed
+
+    def _pipeline_for(self, lang_code: str) -> Any:
+        if lang_code not in self._pipelines:
+            self._pipelines[lang_code] = self._pipeline_type(
+                lang_code=lang_code, repo_id=KOKORO_REPO, device=self._device
+            )
+        return self._pipelines[lang_code]
 
     def synthesize(self, text: str) -> SynthesizedSpeech:
         """Render ``text`` (one sentence or a short paragraph) to speech."""

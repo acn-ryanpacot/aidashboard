@@ -1,8 +1,18 @@
-import { Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
+import {
+  Command,
+  Focus,
+  LayoutDashboard,
+  Mic,
+  MicOff,
+  Settings,
+  Volume2,
+  VolumeX,
+} from 'lucide-react';
 
 import { APP_VERSION } from '../../config';
 import { useAssistant, useVoiceAssistant } from '../../core/voice/hooks';
 import { cn } from '../../lib/cn';
+import { useUi } from '../../state/uiStore';
 import { StatusDot, type Tone } from '../ui/StatusDot';
 
 const CONNECTION: Record<string, { tone: Tone; label: string }> = {
@@ -16,7 +26,7 @@ const ICON_BUTTON = cn(
   'disabled:cursor-not-allowed disabled:opacity-40',
 );
 
-/** Top bar: wordmark, link status, sound and microphone toggles. */
+/** Top bar: wordmark, link status, layout/focus/settings and audio toggles. */
 export function StatusBar() {
   const assistant = useVoiceAssistant();
   const connection = useAssistant((s) => s.connection);
@@ -24,6 +34,7 @@ export function StatusBar() {
   const engaged = useAssistant((s) => s.engaged);
   const soundsEnabled = useAssistant((s) => s.soundsEnabled);
   const link = CONNECTION[connection] ?? { tone: 'muted' as Tone, label: connection };
+  const ui = useUi();
 
   return (
     <header className="relative z-10 flex h-16 items-center justify-between px-8">
@@ -40,6 +51,51 @@ export function StatusBar() {
             {link.label}
           </span>
         </div>
+        <button
+          type="button"
+          onClick={() => ui.open('palette')}
+          className={cn(ICON_BUTTON, 'w-auto gap-2 px-3 text-white/45 hover:text-white/80')}
+          aria-label="Open command palette"
+          title="Command palette (Ctrl+K)"
+        >
+          <Command className="size-3.5" />
+          <span className="font-mono text-[10px]">K</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => ui.setEditing(!ui.editing)}
+          aria-pressed={ui.editing}
+          className={cn(
+            ICON_BUTTON,
+            ui.editing ? 'text-arc-300' : 'text-white/45 hover:text-white/80',
+          )}
+          aria-label={ui.editing ? 'Finish editing layout' : 'Edit layout'}
+          title={ui.editing ? 'Finish editing layout' : 'Edit layout'}
+        >
+          <LayoutDashboard className="size-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => ui.setFocus(!ui.focus)}
+          aria-pressed={ui.focus}
+          className={cn(
+            ICON_BUTTON,
+            ui.focus ? 'text-arc-300' : 'text-white/45 hover:text-white/80',
+          )}
+          aria-label={ui.focus ? 'Leave focus mode' : 'Focus mode'}
+          title={ui.focus ? 'Leave focus mode' : 'Focus mode: hide widgets, quiet chimes'}
+        >
+          <Focus className="size-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => ui.open('settings')}
+          className={cn(ICON_BUTTON, 'text-white/45 hover:text-white/80')}
+          aria-label="Settings"
+          title="Settings"
+        >
+          <Settings className="size-4" />
+        </button>
         <button
           type="button"
           onClick={() => assistant.setSoundsEnabled(!soundsEnabled)}
