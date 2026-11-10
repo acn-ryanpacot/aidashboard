@@ -1,0 +1,38 @@
+# Install once with:  uvx pre-commit install
+# Run on everything:  uvx pre-commit run --all-files
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--unsafe] # mkdocs.yml uses custom YAML tags
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^services/core/
+      - id: ruff-format
+        files: ^services/core/
+
+  - repo: local
+    hooks:
+      - id: web-lint
+        name: web lint (eslint)
+        entry: pnpm --filter @jarvis/desktop lint
+        language: system
+        files: ^(apps|packages|widgets)/.*\.(ts|tsx)$
+        pass_filenames: false
+      - id: web-typecheck
+        name: web typecheck (tsc)
+        entry: pnpm typecheck
+        language: system
+        files: ^(apps|packages|widgets)/.*\.(ts|tsx)$
+        pass_filenames: false

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "desktop",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "pnpm@10.34.9", "--filter", "@jarvis/desktop", "dev"],
+      "port": 5173
+    }
+  ]
+}

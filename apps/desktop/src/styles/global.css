@@ -1,0 +1,219 @@
+/*
+ * Jarvis OS design system — tokens and a handful of bespoke utilities.
+ * Everything else is plain Tailwind. See docs/design/design-system.md.
+ */
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Code', monospace;
+
+  /* Surfaces */
+  --color-void: #04060b;
+  --color-ink: #0a0f1a;
+
+  /* Arc — the primary accent (cyan) */
+  --color-arc-50: #ecfdff;
+  --color-arc-100: #cffaff;
+  --color-arc-200: #b5f5ff;
+  --color-arc-300: #8cecff;
+  --color-arc-400: #5ee7ff;
+  --color-arc-500: #22d3f5;
+  --color-arc-600: #0ea5c6;
+  --color-arc-900: #0b3340;
+
+  /* Secondary accents */
+  --color-gold-400: #ffc45c;
+  --color-signal-red: #ff5c7a;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-void font-sans text-white antialiased;
+    font-feature-settings: 'cv11', 'ss01', 'ss03';
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  ::selection {
+    background: rgb(94 231 255 / 0.3);
+  }
+}
+
+/* Layered background: deep gradient, faint HUD grid, vignette. */
+.hud-backdrop {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 55% at 50% 45%, rgb(34 211 245 / 0.09), transparent 70%),
+    radial-gradient(40% 40% at 85% 10%, rgb(99 102 241 / 0.06), transparent 70%),
+    radial-gradient(35% 35% at 10% 90%, rgb(34 211 245 / 0.05), transparent 70%),
+    linear-gradient(180deg, #050810 0%, #04060b 60%, #030409 100%);
+}
+
+.hud-backdrop::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.025) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(70% 60% at 50% 45%, black 20%, transparent 75%);
+}
+
+.hud-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 90% at 50% 50%, transparent 55%, rgb(0 0 0 / 0.55) 100%);
+}
+
+/* Frosted glass surface used by every panel. */
+@utility glass {
+  border-radius: 1.25rem;
+  border: 1px solid rgb(255 255 255 / 0.07);
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.045), rgb(255 255 255 / 0.012));
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.06),
+    0 24px 60px -24px rgb(0 0 0 / 0.7);
+  backdrop-filter: blur(20px) saturate(140%);
+}
+
+@utility glass-pill {
+  border-radius: 9999px;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  background: rgb(255 255 255 / 0.03);
+  backdrop-filter: blur(16px);
+}
+
+/* Thin, unobtrusive scrollbars. */
+@utility hud-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.12) transparent;
+}
+
+/* Loading skeleton bar. */
+@utility skeleton {
+  background: linear-gradient(
+    90deg,
+    rgb(255 255 255 / 0.04) 0%,
+    rgb(255 255 255 / 0.09) 50%,
+    rgb(255 255 255 / 0.04) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2.4s ease-in-out infinite;
+}
+
+/* Text with a light sweep (used for "Thinking…"). */
+@utility shimmer-text {
+  background: linear-gradient(
+    90deg,
+    rgb(255 255 255 / 0.3) 0%,
+    rgb(255 196 92 / 0.95) 50%,
+    rgb(255 255 255 / 0.3) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 1.8s linear infinite;
+}
+
+/* Blinking caret for streaming text. */
+@utility caret {
+  display: inline-block;
+  width: 0.45em;
+  height: 1em;
+  margin-left: 0.15em;
+  vertical-align: -0.12em;
+  background: rgb(94 231 255 / 0.8);
+  animation: blink 1s steps(2, start) infinite;
+}
+
+/* Static core used on the engage screen. */
+.engage-core {
+  width: 168px;
+  height: 168px;
+  border-radius: 9999px;
+  background:
+    radial-gradient(
+      circle at 50% 50%,
+      #fff 0%,
+      #8cecff 14%,
+      rgb(34 211 245 / 0.35) 38%,
+      transparent 62%
+    ),
+    radial-gradient(circle, transparent 64%, rgb(94 231 255 / 0.4) 65%, transparent 66.5%),
+    radial-gradient(circle, transparent 78%, rgb(94 231 255 / 0.18) 79%, transparent 80%);
+  box-shadow:
+    0 0 80px 10px rgb(34 211 245 / 0.25),
+    0 0 220px 40px rgb(34 211 245 / 0.08);
+  animation: breathe 4s ease-in-out infinite;
+}
+
+.engage-button {
+  background: linear-gradient(180deg, #b5f5ff, #5ee7ff);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.25) inset,
+    0 10px 40px -8px rgb(94 231 255 / 0.65);
+  transition:
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 200ms;
+}
+
+.engage-button:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.35) inset,
+    0 14px 50px -8px rgb(94 231 255 / 0.85);
+}
+
+.engage-button:disabled {
+  opacity: 0.6;
+  transform: none;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.035);
+    filter: brightness(1.15);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@jarvis/widget-sdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Contract and helpers for building Jarvis OS dashboard widgets.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "typescript": "~5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

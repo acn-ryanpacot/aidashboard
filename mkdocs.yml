@@ -1,0 +1,70 @@
+site_name: Jarvis OS
+site_description: A personal, voice-driven AI dashboard.
+repo_name: jarvis-os
+docs_dir: docs
+strict: true
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: cyan
+    accent: cyan
+  font:
+    text: Inter
+    code: JetBrains Mono
+  features:
+    - navigation.sections
+    - navigation.instant
+    - content.code.copy
+    - search.highlight
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [services/core/src]
+          options:
+            docstring_style: google
+            show_source: false
+            members_order: source
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Configuration: configuration.md
+  - Architecture:
+      - Overview: architecture/overview.md
+      - Voice pipeline: architecture/voice-pipeline.md
+      - Voice protocol: architecture/voice-protocol.md
+  - Guides:
+      - Custom wake word: guides/custom-wake-word.md
+      - Adding a widget: guides/adding-a-widget.md
+      - Swapping an AI component: guides/adding-an-adapter.md
+  - Design system: design/design-system.md
+  - Roadmap: roadmap.md
+  - API reference: reference/core.md
+  - Decisions:
+      - adr/index.md
+      - adr/0001-record-architecture-decisions.md
+      - adr/0002-hexagonal-architecture.md
+      - adr/0003-local-first-zero-cost-stack.md
+      - adr/0004-websocket-voice-transport.md
+      - adr/0005-tauri-desktop-shell.md
+      - adr/0006-sentence-streaming-and-playback-acks.md

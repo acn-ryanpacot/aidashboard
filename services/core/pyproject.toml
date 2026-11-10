@@ -1,0 +1,92 @@
+[project]
+name = "jarvis-core"
+version = "0.1.0"
+description = "Jarvis OS core service: voice pipeline, AI brain and widget host."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "pydantic>=2.8",
+  "pydantic-settings>=2.4",
+  "httpx>=0.27",
+  "numpy>=1.26",
+  "structlog>=24.1",
+]
+
+[project.optional-dependencies]
+# Local speech models. Heavy (pulls in PyTorch / ONNX runtime), so they are
+# opt-in:  uv sync --extra voice
+voice = [
+  "faster-whisper>=1.1",
+  "openwakeword>=0.6",
+  "kokoro>=0.9.4",
+  "webrtcvad-wheels>=2.0.14",
+]
+
+[project.scripts]
+jarvis-core = "jarvis_core.__main__:main"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3",
+  "pytest-asyncio>=0.24",
+  "pytest-cov>=5.0",
+  "ruff>=0.8",
+  "mypy>=1.13",
+]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/jarvis_core"]
+
+# ---------------------------------------------------------------- tooling ---
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+  "E", "W",   # pycodestyle
+  "F",        # pyflakes
+  "I",        # isort
+  "N",        # pep8-naming
+  "UP",       # pyupgrade
+  "B",        # bugbear
+  "SIM",      # simplify
+  "RUF",      # ruff-specific
+  "ASYNC",    # async pitfalls
+  "D",        # docstrings (documentation lives in the code, too)
+]
+ignore = [
+  "D105",  # magic-method docstrings
+  "D107",  # __init__ docstrings: constructor args are documented on the class
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D", "ASYNC109", "ASYNC110"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src", "tests"]
+mypy_path = "src"
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["faster_whisper.*", "openwakeword.*", "kokoro.*", "webrtcvad.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+addopts = "-ra"
