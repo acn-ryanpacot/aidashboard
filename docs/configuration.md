@@ -74,6 +74,8 @@ Settings are read from environment variables prefixed with `JARVIS_`, or from `s
 | ------------------------------ | ------------------ | -------------------------------------------------- |
 | `JARVIS_TOOLS_ENABLED`         | `true`             | `false` = plain chat                               |
 | `JARVIS_MAX_TOOL_ROUNDS`       | `4`                | Model-tool round trips per turn                    |
+| `JARVIS_TOOL_ROUTING`          | `auto`             | `auto` = attach only relevant tools (fast on CPU); `all` |
+| `JARVIS_TOOL_ROUTING_MAX_TOOLS`| `6`                | Cap on tools attached to one request               |
 | `JARVIS_MEMORY_ENABLED`        | `true`             | Long-term memory                                   |
 | `JARVIS_EMBEDDING_MODEL`       | `nomic-embed-text` | `ollama pull` it; keyword fallback if missing      |
 | `JARVIS_MEMORY_MIN_SCORE`      | `0.5`              | Similarity for a memory to count as relevant       |

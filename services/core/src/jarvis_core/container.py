@@ -35,7 +35,8 @@ from jarvis_core.application.persona import Persona, PersonaStyle
 from jarvis_core.application.reminders import ReminderScheduler
 from jarvis_core.application.speaker import SpeakerVerification
 from jarvis_core.application.tools import builtin
-from jarvis_core.application.tools.registry import ToolRegistry
+from jarvis_core.application.tools.registry import Tool, ToolRegistry
+from jarvis_core.application.tools.routing import ToolRouter, mcp_group
 from jarvis_core.application.voice_session import SessionConfig, VoiceSession
 from jarvis_core.config import Settings
 from jarvis_core.domain.models import INPUT_FRAME_SAMPLES, INPUT_SAMPLE_RATE
@@ -86,6 +87,7 @@ class Container:
     wake_factory: Callable[[], WakeWordDetector] | None
     vad_factory: Callable[[], VoiceActivityDetector]
     speaker: SpeakerVerification | None = None
+    router: ToolRouter | None = None
     database: Database | None = None
     scheduler: ReminderScheduler | None = None
     warmables: list[Any] = field(default_factory=list)
@@ -133,9 +135,15 @@ class Container:
                 await adapter.warm_up()
         for source in self.tool_sources:
             try:
-                self.tools.extend(await source.start())
+                added: list[Tool] = await source.start()
             except Exception:
                 log.warning("tool_source_failed", exc_info=True)
+                continue
+            self.tools.extend(added)
+            if self.router is not None:
+                for server in sorted({tool.name.split("__", 1)[0] for tool in added}):
+                    specs = [t.spec for t in added if t.name.startswith(f"{server}__")]
+                    self.router.add_group(mcp_group(server, specs))
         if self.tts is not None:
             log.info("greeting_synthesizing", text=self.greeting.text)
             await self.greeting.get()
@@ -236,6 +244,11 @@ def assemble(
         if documents is not None:
             tools.extend(builtin.document_tools(documents))
 
+    router = (
+        ToolRouter(embedder=embedder, max_tools=s.tool_routing_max_tools)
+        if s.tools_enabled and s.tool_routing == "auto"
+        else None
+    )
     speaker = (
         SpeakerVerification(
             speaker_encoder,
@@ -256,6 +269,7 @@ def assemble(
             persona,
             tools if s.tools_enabled else None,
             memory,
+            router=router,
             max_tool_rounds=s.max_tool_rounds,
         ),
         tools=tools,
@@ -269,6 +283,7 @@ def assemble(
         wake_factory=wake_factory,
         vad_factory=vad_factory,
         speaker=speaker,
+        router=router,
         database=database,
         scheduler=ReminderScheduler(
             reminders, hub, user_name=s.user_name, poll_s=s.reminder_poll_s

@@ -10,7 +10,8 @@ import structlog
 from jarvis_core.application.memory import MemoryService
 from jarvis_core.application.persona import Persona
 from jarvis_core.application.tools.registry import ToolRegistry
-from jarvis_core.domain.models import ChatMessage, Role, TextDelta, ToolCall
+from jarvis_core.application.tools.routing import ToolRouter
+from jarvis_core.domain.models import ChatMessage, Role, TextDelta, ToolCall, ToolSpec
 from jarvis_core.domain.ports import LanguageModel
 
 log = structlog.get_logger(__name__)
@@ -33,6 +34,7 @@ class Brain:
     The loop::
 
         prompt = persona + relevant memories + history + request
+        tools  = router.select(request)   (only what this request needs)
         repeat (≤ max_tool_rounds):
             stream the model's reply  → text is yielded immediately
             if it asked for tools     → run them, append results, go again
@@ -44,6 +46,7 @@ class Brain:
         persona: Identity and style.
         tools: Available tools (``None`` or empty = plain chat).
         memory: Long-term memory injected into the prompt.
+        router: Picks the tools to attach per request; ``None`` attaches all.
         max_tool_rounds: Upper bound on model ↔ tool round trips per turn.
     """
 
@@ -54,12 +57,14 @@ class Brain:
         tools: ToolRegistry | None = None,
         memory: MemoryService | None = None,
         *,
+        router: ToolRouter | None = None,
         max_tool_rounds: int = 4,
     ) -> None:
         self._llm = llm
         self._persona = persona
         self._tools = tools
         self._memory = memory
+        self._router = router
         self._max_tool_rounds = max_tool_rounds
 
     @property
@@ -73,13 +78,17 @@ class Brain:
         """Stream the answer to ``request`` given prior ``history``."""
         # Tools may be added after start-up (MCP servers), so check per turn.
         tools = self._tools if self._tools is not None and len(self._tools) > 0 else None
+        specs = await self._select_tools(tools, history, request)
         memories = await self._memory.relevant(request) if self._memory else []
         messages: list[ChatMessage] = [
-            self._persona.system_message(memories=memories, tools_available=tools is not None),
+            self._persona.system_message(
+                memories=memories,
+                tools_available=bool(specs),
+                tools_on_request=tools is not None and not specs,
+            ),
             *history,
             ChatMessage(Role.USER, request),
         ]
-        specs = tools.specs() if tools else []
 
         for round_number in range(self._max_tool_rounds + 1):
             offered = specs if round_number < self._max_tool_rounds else []
@@ -100,3 +109,13 @@ class Brain:
                 result = await tools.execute(call)
                 messages.append(ChatMessage(Role.TOOL, result, tool_name=call.name))
         log.warning("tool_round_limit_reached", rounds=self._max_tool_rounds)  # pragma: no cover
+
+    async def _select_tools(
+        self, tools: ToolRegistry | None, history: Sequence[ChatMessage], request: str
+    ) -> list[ToolSpec]:
+        if tools is None:
+            return []
+        if self._router is None:
+            return tools.specs()
+        previous = next((m.content for m in reversed(history) if m.role is Role.USER), None)
+        return await self._router.select(request, tools.specs(), previous)

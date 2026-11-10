@@ -15,12 +15,25 @@ flowchart LR
 
 ## The loop
 
-1. **Recall.** `MemoryService.relevant(request)` returns up to `memory_top_k` remembered facts, which are added to the system prompt.
-2. **Stream.** Text deltas are yielded immediately, so Jarvis starts speaking while it is still deciding.
-3. **Act.** If the model asks for tools, each call runs through `ToolRegistry.execute`. The UI shows a label such as *"Checking the weather…"*, and the result goes back to the model as a `tool` message.
-4. **Repeat** up to `max_tool_rounds` times (default 4). The final round offers no tools, so the model has to answer in words. The loop always terminates.
+1. **Route.** `ToolRouter` attaches only the tools this request plausibly needs (see below).
+2. **Recall.** `MemoryService.relevant(request)` returns up to `memory_top_k` remembered facts, which are added to the end of the system prompt.
+3. **Stream.** Text deltas are yielded immediately, so Jarvis starts speaking while it is still deciding.
+4. **Act.** If the model asks for tools, each call runs through `ToolRegistry.execute`. The UI shows a label such as *"Checking the weather…"*, and the result goes back to the model as a `tool` message.
+5. **Repeat** up to `max_tool_rounds` times (default 4). The final round offers no tools, so the model has to answer in words. The loop always terminates.
 
 Failures never crash a turn. Unknown tools, bad arguments (`ToolError`), exceptions and timeouts (20 s) all come back to the model as `"Error: …"` strings, so it can apologise or ask a follow-up question ([ADR-0007](../adr/0007-tool-calling-agent-loop.md)).
+
+## Tool routing ([ADR-0011](../adr/0011-tool-routing.md))
+
+On a CPU, every attached tool description costs about 1 s of prompt processing. The router groups tools (time, tasks, reminders, memory, weather, encyclopedia, web, documents, and one group per MCP server) and attaches a group only when:
+
+1. one of its keyword patterns matches the request, or
+2. the request matches nothing, but the previous user message does. This handles vague follow-ups like "and call dad too" after "add call mum to my tasks", or
+3. nothing matched at all, an embedding model is available, and the group's description is similar enough to the request.
+
+Otherwise no tools are attached. Chit-chat turns then cost about 200 prompt tokens instead of about 1,000. Set `JARVIS_TOOL_ROUTING=all` to attach everything, for example on a GPU. To add cues, extend `BUILTIN_GROUPS` in `application/tools/routing.py`.
+
+The system prompt also keeps a stable prefix (date and part of day only, with variable lines last), so Ollama can reuse its prompt cache between turns.
 
 ## Built-in tools
 

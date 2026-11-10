@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **Per-request tool routing** (`JARVIS_TOOL_ROUTING=auto`): only the tool groups a request needs are attached, chosen by keywords, the previous user message and an optional embedding fallback. On a CPU-only laptop with `llama3.2:3b`, chit-chat turns drop from ~17 s to ~2.3 s and tool turns from 17–30 s to ~7–9 s, with fewer spurious tool calls ([ADR-0011](docs/adr/0011-tool-routing.md)).
+- The system prompt keeps a stable prefix (date and part of day, variable lines last) so Ollama can reuse its prompt cache; exact times come from the `get_current_time` tool.
+
 ## [0.2.0] - 2026-11-10
 
 Phases 2 (voice polish) and 3 (the brain).

@@ -14,6 +14,7 @@ Each ADR captures one significant decision: its context, the choice, and the con
 | 0008 | [SQLite persistence](0008-sqlite-persistence.md) | Accepted |
 | 0009 | [Barge-in and playback watchdog](0009-barge-in-and-playback-watchdog.md) | Accepted |
 | 0010 | [Voice ID](0010-voice-id.md) | Accepted |
+| 0011 | [Tool routing and a stable prompt prefix](0011-tool-routing.md) | Accepted |
 
 ## Template
 

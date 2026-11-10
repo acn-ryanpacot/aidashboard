@@ -77,3 +77,4 @@ nav:
       - adr/0008-sqlite-persistence.md
       - adr/0009-barge-in-and-playback-watchdog.md
       - adr/0010-voice-id.md
+      - adr/0011-tool-routing.md

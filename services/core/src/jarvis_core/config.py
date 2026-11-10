@@ -122,6 +122,11 @@ class Settings(BaseSettings):
     # --- Brain: tools & memory -----------------------------------------------
     tools_enabled: bool = True
     max_tool_rounds: int = Field(default=4, ge=1, le=10)
+    tool_routing: Literal["auto", "all"] = Field(
+        default="auto",
+        description="auto = attach only the tools a request needs (much faster on CPU).",
+    )
+    tool_routing_max_tools: int = Field(default=6, ge=1, le=50)
     memory_enabled: bool = True
     embedding_model: str = "nomic-embed-text"
     memory_min_score: float = Field(default=0.5, ge=0.0, le=1.0)

@@ -13,8 +13,25 @@ def test_system_prompt_mentions_names_and_time() -> None:
     assert message.role is Role.SYSTEM
     assert "You are Jarvis" in message.content
     assert "You serve Ryan" in message.content
-    assert "Tuesday, 10 November 2026, 09:30" in message.content
+    assert "Today is Tuesday, 10 November 2026, in the morning" in message.content
     assert "Markdown" in message.content
+
+
+def test_prompt_prefix_is_stable_within_a_day() -> None:
+    """Ollama reuses its prompt cache for an identical prefix: keep it identical."""
+    persona = Persona("Jarvis", "Ryan", "How can I help you Ryan?")
+    early = persona.system_message(datetime(2026, 11, 10, 9, 1, tzinfo=UTC)).content
+    later = persona.system_message(
+        datetime(2026, 11, 10, 11, 59, tzinfo=UTC), memories=["Ryan likes jazz"]
+    ).content
+    assert later.startswith(early)
+
+
+def test_prompt_mentions_on_request_tools() -> None:
+    persona = Persona("Jarvis", "Ryan", "How can I help you Ryan?")
+    prompt = persona.system_message(tools_on_request=True).content
+    assert "none are attached now" in prompt
+    assert "no tools" not in prompt
 
 
 def test_history_is_bounded_and_skips_blank_messages() -> None:

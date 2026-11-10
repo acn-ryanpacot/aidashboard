@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-10
+- Amended by: [0011](0011-tool-routing.md) (per-request tool routing)
 
 ## Context
 

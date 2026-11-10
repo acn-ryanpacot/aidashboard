@@ -112,5 +112,5 @@ The orb (`components/hud/orbRenderer.ts`) is drawn on a 2D canvas at display ref
 | End-of-speech detection       | 800 ms (configurable) |
 | Voice ID check (if enabled)   | 50–150 ms    |
 | Whisper `base.en`, 3 s clip   | 300–700 ms   |
-| LLM first sentence (3B)       | 400–1200 ms (+ a round trip per tool) |
+| LLM first sentence (3B, CPU)  | ~1.5 s without tools; ~6–8 s when a tool is used (two model calls) |
 | Kokoro, one sentence          | 200–600 ms   |

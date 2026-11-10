@@ -30,6 +30,15 @@ _HUMOUR = {
 }
 
 
+def _part_of_day(hour: int) -> str:
+    """Coarse time of day: keeps the prompt stable for hours at a time."""
+    if 5 <= hour < 12:
+        return "morning"
+    if 12 <= hour < 18:
+        return "afternoon"
+    return "evening" if 18 <= hour < 23 else "night"
+
+
 @dataclass(frozen=True, slots=True)
 class PersonaStyle:
     """Tunable personality traits (``JARVIS_PERSONA_*`` settings)."""
@@ -61,13 +70,20 @@ class Persona:
         *,
         memories: Sequence[str] = (),
         tools_available: bool = False,
+        tools_on_request: bool = False,
     ) -> ChatMessage:
         """Build the system prompt.
+
+        The static instructions come first and the date is day-granular, so the
+        prompt prefix is identical across turns and Ollama can reuse its cache.
+        Per-request content (memories) goes last.
 
         Args:
             now: Override the clock (useful for tests).
             memories: Long-term facts relevant to the current request.
-            tools_available: Whether tools are offered this turn.
+            tools_available: Whether tools are attached to this turn.
+            tools_on_request: Tools exist but none were attached to this turn
+                (see :class:`~jarvis_core.application.tools.routing.ToolRouter`).
         """
         now = now or datetime.now().astimezone()
         user = self.user_name
@@ -84,19 +100,28 @@ class Persona:
             "- If you do not know something, say so briefly instead of guessing.",
         ]
         if tools_available:
-            lines += [
+            tool_lines = [
                 "- You have tools for tasks, reminders, memory, weather and looking things up. "
                 "Use a tool only when the request needs it, and never invent a tool's result.",
                 "- When a tool returns an error, explain the problem briefly or ask a question.",
                 "- Never claim abilities beyond your tools.",
             ]
+        elif tools_on_request:
+            tool_lines = [
+                "- Tools for tasks, reminders, memory, weather and look-ups are attached only "
+                "when a request needs them, and none are attached now. Answer from your own "
+                "knowledge. If the user wanted an action, say you didn't catch it and suggest a "
+                "phrasing such as 'add milk to my tasks' or 'remind me to call Sam at 5'."
+            ]
         else:
-            lines.append(
+            tool_lines = [
                 "- You currently have no tools: you cannot read calendars, tasks, email or the "
                 "web, control devices, or place orders. Never claim abilities you do not have."
-            )
+            ]
+        # Everything above is static; what follows varies by day or by request.
+        lines += ["", f"Today is {now:%A, %d %B %Y}, in the {_part_of_day(now.hour)} ({now:%Z})."]
+        lines += tool_lines
         if memories:
             lines += ["", f"Things you remember about {user}:"]
             lines += [f"- {memory}" for memory in memories]
-        lines += ["", f"The current local date and time is {now:%A, %d %B %Y, %H:%M (%Z)}."]
         return ChatMessage(Role.SYSTEM, "\n".join(lines))
