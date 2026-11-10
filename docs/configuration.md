@@ -35,6 +35,19 @@ Settings are read from environment variables prefixed with `JARVIS_`, or from `s
 | `JARVIS_LISTEN_TIMEOUT_MS` | `6000`         | Give up if you say nothing after the greeting            |
 | `JARVIS_FOLLOW_UP_MS`      | `6000`         | Keep listening after an answer; `0` disables             |
 | `JARVIS_MAX_UTTERANCE_MS`  | `15000`        | Hard cap per request                                     |
+| `JARVIS_BARGE_IN`          | `wake_word`    | `voice` = just talk over Jarvis; `off`                   |
+| `JARVIS_BARGE_IN_MIN_SPEECH_MS` | `400`     | Continuous speech needed for `voice` barge-in            |
+| `JARVIS_PLAYBACK_GRACE_MS` | `4000`         | Watchdog slack for unacknowledged audio                  |
+
+`JARVIS_VAD_ENGINE` also accepts `silero` (neural, best in noisy rooms).
+
+### Voice ID
+
+| Variable                            | Default | Notes                                        |
+| ----------------------------------- | ------- | -------------------------------------------- |
+| `JARVIS_SPEAKER_VERIFICATION`       | `false` | Requires `uv sync --extra voice --extra speaker` |
+| `JARVIS_SPEAKER_THRESHOLD`          | `0.30`  | Cosine similarity needed to accept a voice   |
+| `JARVIS_SPEAKER_ENROLLMENT_SAMPLES` | `3`     | Utterances recorded when enrolling           |
 
 ### Speech-to-text
 
@@ -54,6 +67,34 @@ Settings are read from environment variables prefixed with `JARVIS_`, or from `s
 | `JARVIS_LLM_TEMPERATURE` | `0.6`                     |
 | `JARVIS_LLM_TIMEOUT_S`   | `120`                     |
 | `JARVIS_HISTORY_MESSAGES`| `20`                      |
+
+### Brain: tools, memory and knowledge
+
+| Variable                       | Default            | Notes                                              |
+| ------------------------------ | ------------------ | -------------------------------------------------- |
+| `JARVIS_TOOLS_ENABLED`         | `true`             | `false` = plain chat                               |
+| `JARVIS_MAX_TOOL_ROUNDS`       | `4`                | Model-tool round trips per turn                    |
+| `JARVIS_MEMORY_ENABLED`        | `true`             | Long-term memory                                   |
+| `JARVIS_EMBEDDING_MODEL`       | `nomic-embed-text` | `ollama pull` it; keyword fallback if missing      |
+| `JARVIS_MEMORY_MIN_SCORE`      | `0.5`              | Similarity for a memory to count as relevant       |
+| `JARVIS_MEMORY_TOP_K`          | `3`                | Memories added to each prompt                      |
+| `JARVIS_WEATHER_ENABLED`       | `true`             | Open-Meteo                                         |
+| `JARVIS_DEFAULT_LOCATION`      | (empty)            | e.g. `Manila`, used when no place is named          |
+| `JARVIS_ENCYCLOPEDIA_ENABLED`  | `true`             | Wikipedia                                          |
+| `JARVIS_ENCYCLOPEDIA_USER_AGENT` | `JarvisOS/0.2 (+https://localhost; …)` | Wikimedia's robot policy wants a contact URL or email here; put your own repo URL if you have one |
+| `JARVIS_SEARXNG_URL`           | (empty)            | Enables `web_search`                               |
+| `JARVIS_DOCUMENTS_DIR`         | (empty)            | Enables `search_documents` over that folder         |
+| `JARVIS_MCP_SERVERS`           | `[]`               | JSON list, see the MCP guide                       |
+| `JARVIS_REMINDER_POLL_S`       | `5`                | Reminder check interval                            |
+| `JARVIS_PERSONA_FORMALITY`     | `balanced`         | `formal`, `balanced` or `casual`                   |
+| `JARVIS_PERSONA_VERBOSITY`     | `balanced`         | `brief`, `balanced` or `detailed`                  |
+| `JARVIS_PERSONA_HUMOUR`        | `dry`              | `none`, `dry` or `playful`                         |
+
+### Storage
+
+| Variable          | Default         | Notes                                              |
+| ----------------- | --------------- | -------------------------------------------------- |
+| `JARVIS_DATA_DIR` | `~/.jarvis-os`  | `jarvis.db`, `voiceprint.json`, model caches       |
 
 ### Text-to-speech
 

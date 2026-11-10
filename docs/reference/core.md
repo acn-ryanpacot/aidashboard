@@ -10,11 +10,27 @@ Generated from the docstrings in `services/core/src/jarvis_core`.
 
 ::: jarvis_core.domain.events
 
+::: jarvis_core.domain.records
+
 ::: jarvis_core.domain.errors
 
 ## Application
 
 ::: jarvis_core.application.voice_session
+
+::: jarvis_core.application.brain
+
+::: jarvis_core.application.tools.registry
+
+::: jarvis_core.application.tools.builtin
+
+::: jarvis_core.application.memory
+
+::: jarvis_core.application.reminders
+
+::: jarvis_core.application.speaker
+
+::: jarvis_core.application.hub
 
 ::: jarvis_core.application.endpointing
 
@@ -37,3 +53,5 @@ Generated from the docstrings in `services/core/src/jarvis_core`.
 ## Delivery
 
 ::: jarvis_core.api.protocol
+
+::: jarvis_core.adapters.persistence.database

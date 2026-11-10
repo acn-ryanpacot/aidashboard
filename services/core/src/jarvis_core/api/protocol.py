@@ -22,18 +22,26 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from jarvis_core.domain.events import (
     AssistantTextDelta,
+    DataChanged,
+    EnrollmentProgress,
+    EnrollmentStatus,
     ErrorOccurred,
+    Interrupted,
+    Notification,
     SegmentKind,
+    SpeakerRejected,
     SpeechSegmentReady,
     StateChanged,
+    ToolInvoked,
     TranscriptReady,
     TurnCompleted,
+    TurnMetrics,
     VoiceEvent,
     WakeDetected,
 )
 from jarvis_core.domain.models import AssistantState
 
-PROTOCOL_VERSION = 1
+PROTOCOL_VERSION = 2
 
 
 class _Message(BaseModel):
@@ -44,9 +52,15 @@ class _Message(BaseModel):
 
 
 class ActivateMessage(_Message):
-    """Manually trigger the assistant (click on the orb / push-to-talk)."""
+    """Manually trigger the assistant (click on the orb): greet, then listen."""
 
     type: Literal["activate"]
+
+
+class ListenMessage(_Message):
+    """Push-to-talk: start listening immediately, without the greeting."""
+
+    type: Literal["listen"]
 
 
 class TextQueryMessage(_Message):
@@ -64,13 +78,24 @@ class PlaybackEndedMessage(_Message):
 
 
 class CancelMessage(_Message):
-    """Stop the current answer and return to idle."""
+    """Stop the current answer (or enrollment) and return to idle."""
 
     type: Literal["cancel"]
 
 
+class EnrollVoiceMessage(_Message):
+    """Start recording samples for voice ID."""
+
+    type: Literal["enroll_voice"]
+
+
 ClientMessage = Annotated[
-    ActivateMessage | TextQueryMessage | PlaybackEndedMessage | CancelMessage,
+    ActivateMessage
+    | ListenMessage
+    | TextQueryMessage
+    | PlaybackEndedMessage
+    | CancelMessage
+    | EnrollVoiceMessage,
     Field(discriminator="type"),
 ]
 client_message_adapter: TypeAdapter[ClientMessage] = TypeAdapter(ClientMessage)
@@ -90,6 +115,10 @@ class ReadyMessage(_Message):
     wake_model: str | None
     speech_input_enabled: bool
     speech_output_enabled: bool
+    barge_in: str
+    speaker_verification_enabled: bool
+    speaker_enrolled: bool
+    tools: list[str]
     input_sample_rate: int
     input_frame_samples: int
 
@@ -107,6 +136,12 @@ class WakeMessage(_Message):
     type: Literal["wake"] = "wake"
 
 
+class InterruptedMessage(_Message):
+    """See :class:`~jarvis_core.domain.events.Interrupted`: stop playback now."""
+
+    type: Literal["interrupted"] = "interrupted"
+
+
 class TranscriptMessage(_Message):
     """See :class:`~jarvis_core.domain.events.TranscriptReady`."""
 
@@ -119,6 +154,14 @@ class AssistantDeltaMessage(_Message):
 
     type: Literal["assistant_delta"] = "assistant_delta"
     text: str
+
+
+class ToolMessage(_Message):
+    """See :class:`~jarvis_core.domain.events.ToolInvoked`."""
+
+    type: Literal["tool"] = "tool"
+    name: str
+    label: str
 
 
 class WordTimingModel(_Message):
@@ -147,6 +190,48 @@ class TurnCompleteMessage(_Message):
     text: str
 
 
+class MetricsMessage(_Message):
+    """See :class:`~jarvis_core.domain.events.TurnMetrics` (milliseconds)."""
+
+    type: Literal["metrics"] = "metrics"
+    stt_ms: float | None
+    first_token_ms: float | None
+    first_audio_ms: float | None
+    total_ms: float
+    tools: list[str]
+
+
+class SpeakerRejectedMessage(_Message):
+    """See :class:`~jarvis_core.domain.events.SpeakerRejected`."""
+
+    type: Literal["speaker_rejected"] = "speaker_rejected"
+    score: float
+
+
+class EnrollmentMessage(_Message):
+    """See :class:`~jarvis_core.domain.events.EnrollmentProgress`."""
+
+    type: Literal["enrollment"] = "enrollment"
+    status: EnrollmentStatus
+    collected: int
+    required: int
+
+
+class NotificationMessage(_Message):
+    """See :class:`~jarvis_core.domain.events.Notification`."""
+
+    type: Literal["notification"] = "notification"
+    kind: str
+    text: str
+
+
+class DataChangedMessage(_Message):
+    """See :class:`~jarvis_core.domain.events.DataChanged`."""
+
+    type: Literal["data_changed"] = "data_changed"
+    topic: str
+
+
 class ErrorMessage(_Message):
     """See :class:`~jarvis_core.domain.events.ErrorOccurred`."""
 
@@ -158,10 +243,17 @@ ServerMessage = (
     ReadyMessage
     | StateMessage
     | WakeMessage
+    | InterruptedMessage
     | TranscriptMessage
     | AssistantDeltaMessage
+    | ToolMessage
     | SpeechSegmentMessage
     | TurnCompleteMessage
+    | MetricsMessage
+    | SpeakerRejectedMessage
+    | EnrollmentMessage
+    | NotificationMessage
+    | DataChangedMessage
     | ErrorMessage
 )
 
@@ -173,10 +265,14 @@ def to_server_message(event: VoiceEvent) -> ServerMessage:
             return StateMessage(state=state)
         case WakeDetected():
             return WakeMessage()
+        case Interrupted():
+            return InterruptedMessage()
         case TranscriptReady(text=text):
             return TranscriptMessage(text=text)
         case AssistantTextDelta(text=text):
             return AssistantDeltaMessage(text=text)
+        case ToolInvoked(name=name, label=label):
+            return ToolMessage(name=name, label=label)
         case SpeechSegmentReady(segment_id=segment_id, kind=kind, speech=speech):
             return SpeechSegmentMessage(
                 segment_id=segment_id,
@@ -189,6 +285,22 @@ def to_server_message(event: VoiceEvent) -> ServerMessage:
             )
         case TurnCompleted(text=text):
             return TurnCompleteMessage(text=text)
+        case TurnMetrics() as m:
+            return MetricsMessage(
+                stt_ms=m.stt_ms,
+                first_token_ms=m.first_token_ms,
+                first_audio_ms=m.first_audio_ms,
+                total_ms=m.total_ms,
+                tools=list(m.tools),
+            )
+        case SpeakerRejected(score=score):
+            return SpeakerRejectedMessage(score=score)
+        case EnrollmentProgress(status=status, collected=collected, required=required):
+            return EnrollmentMessage(status=status, collected=collected, required=required)
+        case Notification(kind=kind, text=text):
+            return NotificationMessage(kind=kind, text=text)
+        case DataChanged(topic=topic):
+            return DataChangedMessage(topic=topic)
         case ErrorOccurred(message=message):
             return ErrorMessage(message=message)
     raise TypeError(f"Unhandled event type: {type(event).__name__}")  # pragma: no cover

@@ -1,4 +1,4 @@
-import { Mic, MicOff } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
 
 import { APP_VERSION } from '../../config';
 import { useAssistant, useVoiceAssistant } from '../../core/voice/hooks';
@@ -11,12 +11,18 @@ const CONNECTION: Record<string, { tone: Tone; label: string }> = {
   offline: { tone: 'error', label: 'Core offline' },
 };
 
-/** Top bar: wordmark, link status and microphone toggle. */
+const ICON_BUTTON = cn(
+  'glass-pill flex size-9 items-center justify-center transition-colors',
+  'disabled:cursor-not-allowed disabled:opacity-40',
+);
+
+/** Top bar: wordmark, link status, sound and microphone toggles. */
 export function StatusBar() {
   const assistant = useVoiceAssistant();
   const connection = useAssistant((s) => s.connection);
   const micActive = useAssistant((s) => s.micActive);
   const engaged = useAssistant((s) => s.engaged);
+  const soundsEnabled = useAssistant((s) => s.soundsEnabled);
   const link = CONNECTION[connection] ?? { tone: 'muted' as Tone, label: connection };
 
   return (
@@ -36,14 +42,27 @@ export function StatusBar() {
         </div>
         <button
           type="button"
+          onClick={() => assistant.setSoundsEnabled(!soundsEnabled)}
+          className={cn(
+            ICON_BUTTON,
+            soundsEnabled
+              ? 'text-white/60 hover:text-white/85'
+              : 'text-white/30 hover:text-white/60',
+          )}
+          aria-label={soundsEnabled ? 'Mute interface sounds' : 'Enable interface sounds'}
+          title={soundsEnabled ? 'Mute interface sounds' : 'Enable interface sounds'}
+        >
+          {soundsEnabled ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
+        </button>
+        <button
+          type="button"
           disabled={!engaged}
           onClick={() =>
             micActive ? assistant.disableMicrophone() : void assistant.enableMicrophone()
           }
           className={cn(
-            'glass-pill flex size-9 items-center justify-center transition-colors',
+            ICON_BUTTON,
             micActive ? 'text-arc-300 hover:text-arc-200' : 'text-white/40 hover:text-white/70',
-            'disabled:cursor-not-allowed disabled:opacity-40',
           )}
           aria-label={micActive ? 'Mute microphone' : 'Unmute microphone'}
           title={micActive ? 'Mute microphone' : 'Unmute microphone'}

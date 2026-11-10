@@ -4,6 +4,8 @@ import { DEFAULT_USER_NAME } from '../../config';
 import { useAssistant } from '../../core/voice/hooks';
 import { cn } from '../../lib/cn';
 
+const SPEAKER_LABEL: Partial<Record<string, string>> = { system: 'System', notice: 'Reminder' };
+
 /** Scrolling transcript of the current session. */
 export function ConversationWidget() {
   const entries = useAssistant((s) => s.entries);
@@ -33,13 +35,10 @@ export function ConversationWidget() {
               entry.speaker === 'user' && 'text-white/35',
               entry.speaker === 'assistant' && 'text-arc-300/70',
               entry.speaker === 'system' && 'text-signal-red/80',
+              entry.speaker === 'notice' && 'text-gold-400/80',
             )}
           >
-            {entry.speaker === 'user'
-              ? userName
-              : entry.speaker === 'assistant'
-                ? assistantName
-                : 'System'}
+            {SPEAKER_LABEL[entry.speaker] ?? (entry.speaker === 'user' ? userName : assistantName)}
           </h3>
           <p
             className={cn(

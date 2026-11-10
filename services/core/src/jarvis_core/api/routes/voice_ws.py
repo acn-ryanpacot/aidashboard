@@ -12,7 +12,9 @@ from jarvis_core.adapters.audio import encode_wav
 from jarvis_core.api.protocol import (
     ActivateMessage,
     CancelMessage,
+    EnrollVoiceMessage,
     ErrorMessage,
+    ListenMessage,
     PlaybackEndedMessage,
     ReadyMessage,
     ServerMessage,
@@ -58,22 +60,39 @@ class WebSocketEventSink:
         await self._ws.send_text(message.model_dump_json())
 
 
-def _origin_allowed(websocket: WebSocket, allowed: list[str]) -> bool:
+def origin_allowed(origin: str | None, allowed: list[str]) -> bool:
     """Browsers don't apply CORS to WebSockets, so check ``Origin`` ourselves.
 
     Requests without an Origin header (CLI tools, tests, native mobile apps)
     are allowed; the server only listens on loopback by default.
     """
-    origin = websocket.headers.get("origin")
     return origin is None or origin in allowed
+
+
+def ready_message(container: Container) -> ReadyMessage:
+    """Describe this server's capabilities to a new client."""
+    s = container.settings
+    return ReadyMessage(
+        assistant_name=s.assistant_name,
+        user_name=s.user_name,
+        wake_word_enabled=container.wake_factory is not None,
+        wake_model=s.wake_model if container.wake_factory else None,
+        speech_input_enabled=container.stt is not None,
+        speech_output_enabled=container.tts is not None,
+        barge_in=s.barge_in if container.stt is not None else "off",
+        speaker_verification_enabled=container.speaker is not None,
+        speaker_enrolled=bool(container.speaker and container.speaker.enrolled),
+        tools=[spec.name for spec in container.tools.specs()],
+        input_sample_rate=INPUT_SAMPLE_RATE,
+        input_frame_samples=INPUT_FRAME_SAMPLES,
+    )
 
 
 @router.websocket("/ws/voice")
 async def voice_socket(websocket: WebSocket) -> None:
     """Run a voice session for the lifetime of the connection."""
     container: Container = websocket.app.state.container
-    settings = container.settings
-    if not _origin_allowed(websocket, settings.allowed_origins):
+    if not origin_allowed(websocket.headers.get("origin"), container.settings.allowed_origins):
         log.warning("ws_origin_rejected", origin=websocket.headers.get("origin"))
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
@@ -81,20 +100,10 @@ async def voice_socket(websocket: WebSocket) -> None:
     await websocket.accept()
     sink = WebSocketEventSink(websocket)
     session = container.new_session(sink)
-    await sink.send(
-        ReadyMessage(
-            assistant_name=settings.assistant_name,
-            user_name=settings.user_name,
-            wake_word_enabled=container.wake_factory is not None,
-            wake_model=settings.wake_model if container.wake_factory else None,
-            speech_input_enabled=container.stt is not None,
-            speech_output_enabled=container.tts is not None,
-            input_sample_rate=INPUT_SAMPLE_RATE,
-            input_frame_samples=INPUT_FRAME_SAMPLES,
-        )
-    )
+    await sink.send(ready_message(container))
     await session.start()
-    log.info("ws_connected", client=str(websocket.client))
+    container.hub.register(session, sink)
+    log.info("ws_connected", client=str(websocket.client), clients=len(container.hub))
 
     try:
         while True:
@@ -109,6 +118,7 @@ async def voice_socket(websocket: WebSocket) -> None:
     except WebSocketDisconnect:
         pass
     finally:
+        container.hub.unregister(session)
         await session.close()
         log.info("ws_disconnected", client=str(websocket.client))
 
@@ -123,9 +133,13 @@ async def _dispatch(session: VoiceSession, sink: WebSocketEventSink, raw: str) -
     match command:
         case ActivateMessage():
             await session.activate()
+        case ListenMessage():
+            await session.listen()
         case TextQueryMessage(text=text):
             await session.handle_text_query(text)
         case PlaybackEndedMessage(segment_id=segment_id):
             await session.handle_playback_ended(segment_id)
         case CancelMessage():
             await session.cancel()
+        case EnrollVoiceMessage():
+            await session.start_enrollment()

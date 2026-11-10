@@ -1,9 +1,11 @@
-"""Core value objects shared across the voice pipeline."""
+"""Core value objects shared across the voice pipeline and the brain."""
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
+from typing import Any
 
 #: Sample rate of microphone audio streamed from the client (Hz).
 INPUT_SAMPLE_RATE = 16_000
@@ -32,14 +34,67 @@ class Role(StrEnum):
     SYSTEM = "system"
     USER = "user"
     ASSISTANT = "assistant"
+    TOOL = "tool"
+
+
+@dataclass(frozen=True, slots=True)
+class ToolSpec:
+    """Description of a tool the language model may call.
+
+    Attributes:
+        name: Unique snake_case identifier, e.g. ``add_task``.
+        description: When and why to use the tool (the model reads this).
+        parameters: JSON Schema of the arguments object.
+    """
+
+    name: str
+    description: str
+    parameters: Mapping[str, Any] = field(
+        default_factory=lambda: {"type": "object", "properties": {}}
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class ToolCall:
+    """A request from the model to run a tool.
+
+    Attributes:
+        name: Tool name.
+        arguments: Parsed JSON arguments.
+        id: Provider-specific call id, if any.
+    """
+
+    name: str
+    arguments: Mapping[str, Any]
+    id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class ChatMessage:
-    """A single message in a conversation with the language model."""
+    """A single message in a conversation with the language model.
+
+    Attributes:
+        role: Who wrote it.
+        content: Text content (may be empty for pure tool-call messages).
+        tool_calls: Tools the assistant asked to run (assistant messages only).
+        tool_name: Which tool produced this result (tool messages only).
+    """
 
     role: Role
     content: str
+    tool_calls: tuple[ToolCall, ...] = ()
+    tool_name: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class TextDelta:
+    """An incremental chunk of text streamed by the language model."""
+
+    text: str
+
+
+#: What a language model stream yields: text, or a request to call a tool.
+LlmEvent = TextDelta | ToolCall
 
 
 @dataclass(frozen=True, slots=True)

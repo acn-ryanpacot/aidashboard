@@ -14,7 +14,7 @@ from jarvis_core.adapters.audio import encode_wav, float_to_pcm16, pcm16_to_floa
 from jarvis_core.adapters.llm.ollama import OllamaLanguageModel
 from jarvis_core.adapters.vad.energy import EnergyVoiceActivityDetector
 from jarvis_core.domain.errors import LanguageModelError
-from jarvis_core.domain.models import AudioClip, ChatMessage, Role
+from jarvis_core.domain.models import AudioClip, ChatMessage, Role, TextDelta
 
 # --------------------------------------------------------------------- audio
 
@@ -75,7 +75,7 @@ async def test_ollama_streams_deltas() -> None:
         return httpx.Response(200, text="\n".join(json.dumps(line) for line in lines))
 
     llm = _ollama(httpx.MockTransport(handler))
-    assert [d async for d in llm.stream_chat(MESSAGES)] == ["Hello", " Ryan."]
+    assert [d async for d in llm.stream_chat(MESSAGES)] == [TextDelta("Hello"), TextDelta(" Ryan.")]
     assert captured["model"] == "test:1b"
     assert captured["messages"] == [{"role": "user", "content": "hi"}]
     await llm.aclose()

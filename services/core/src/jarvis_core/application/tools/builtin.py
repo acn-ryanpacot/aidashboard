@@ -1,0 +1,408 @@
+"""Built-in tools: time, tasks, reminders, memory, weather, knowledge, web, documents.
+
+Each factory closes over the ports it needs and returns :class:`Tool` objects.
+Results are short, factual strings — the model turns them into speech.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping
+from datetime import datetime
+from typing import Any
+
+from jarvis_core.application.memory import MemoryService
+from jarvis_core.application.tools.registry import (
+    Tool,
+    ToolError,
+    number_arg,
+    schema,
+    text_arg,
+)
+from jarvis_core.application.tools.timeparse import resolve_due_time, spoken_time
+from jarvis_core.domain.models import ToolSpec
+from jarvis_core.domain.ports import (
+    DocumentSearch,
+    KnowledgeProvider,
+    Notifier,
+    ReminderRepository,
+    TaskRepository,
+    WeatherProvider,
+    WebSearchProvider,
+)
+from jarvis_core.domain.records import Reminder, Task
+
+Clock = Callable[[], datetime]
+
+
+def local_now() -> datetime:
+    """The current local time, timezone-aware."""
+    return datetime.now().astimezone()
+
+
+def _string(description: str) -> dict[str, str]:
+    return {"type": "string", "description": description}
+
+
+# ---------------------------------------------------------------------- time
+
+
+def time_tools(clock: Clock = local_now) -> list[Tool]:
+    """``get_current_time``."""
+
+    async def get_current_time(_: Mapping[str, Any]) -> str:
+        now = clock()
+        return f"It is {now:%A %d %B %Y}, {now:%H:%M} ({now.tzname()})."
+
+    return [
+        Tool(
+            ToolSpec(
+                "get_current_time",
+                "Get the current local date and time. Use for questions about the time or date.",
+            ),
+            "Checking the time",
+            get_current_time,
+        )
+    ]
+
+
+# --------------------------------------------------------------------- tasks
+
+
+def _match_task(tasks: list[Task], reference: str) -> Task:
+    """Find a task by numeric id or by (case-insensitive) title fragment."""
+    if reference.isdigit():
+        for task in tasks:
+            if task.id == int(reference):
+                return task
+    needle = reference.lower()
+    matches = [t for t in tasks if needle in t.title.lower()] or [
+        t for t in tasks if t.title.lower() in needle
+    ]
+    if not matches:
+        raise ToolError(f"no open task matches '{reference}'")
+    if len(matches) > 1:
+        titles = "; ".join(t.title for t in matches[:5])
+        raise ToolError(f"'{reference}' matches several tasks ({titles}); ask which one")
+    return matches[0]
+
+
+def task_tools(repo: TaskRepository, notifier: Notifier | None = None) -> list[Tool]:
+    """``add_task``, ``list_tasks``, ``complete_task``."""
+
+    async def changed() -> None:
+        if notifier is not None:
+            await notifier.data_changed("tasks")
+
+    async def add_task(args: Mapping[str, Any]) -> str:
+        title = text_arg(args, "title")
+        assert title is not None
+        task = await repo.add(title)
+        await changed()
+        return f"Added task #{task.id}: {task.title}."
+
+    async def list_tasks(_: Mapping[str, Any]) -> str:
+        tasks = await repo.list_all()
+        if not tasks:
+            return "The task list is empty."
+        lines = "; ".join(f"#{t.id} {t.title}" for t in tasks[:15])
+        return f"{len(tasks)} open task(s): {lines}."
+
+    async def complete_task(args: Mapping[str, Any]) -> str:
+        reference = text_arg(args, "task")
+        assert reference is not None
+        task = _match_task(await repo.list_all(), reference)
+        await repo.set_done(task.id, True)
+        await changed()
+        return f"Marked '{task.title}' as done."
+
+    return [
+        Tool(
+            ToolSpec(
+                "add_task",
+                "Add an item to the user's to-do list.",
+                schema({"title": _string("The task, e.g. 'Buy milk'.")}, ["title"]),
+            ),
+            "Updating your tasks",
+            add_task,
+        ),
+        Tool(
+            ToolSpec("list_tasks", "List the user's open to-do items."),
+            "Checking your tasks",
+            list_tasks,
+        ),
+        Tool(
+            ToolSpec(
+                "complete_task",
+                "Mark a to-do item as done.",
+                schema({"task": _string("Task number or words from its title.")}, ["task"]),
+            ),
+            "Updating your tasks",
+            complete_task,
+        ),
+    ]
+
+
+# ----------------------------------------------------------------- reminders
+
+
+def _match_reminder(reminders: list[Reminder], reference: str) -> Reminder:
+    if reference.isdigit():
+        for reminder in reminders:
+            if reminder.id == int(reference):
+                return reminder
+    matches = [r for r in reminders if reference.lower() in r.text.lower()]
+    if len(matches) != 1:
+        raise ToolError(
+            f"no upcoming reminder matches '{reference}'"
+            if not matches
+            else f"'{reference}' matches several reminders; ask which one"
+        )
+    return matches[0]
+
+
+def reminder_tools(
+    repo: ReminderRepository, notifier: Notifier | None = None, clock: Clock = local_now
+) -> list[Tool]:
+    """``set_reminder``, ``list_reminders``, ``cancel_reminder``."""
+
+    async def changed() -> None:
+        if notifier is not None:
+            await notifier.data_changed("reminders")
+
+    async def set_reminder(args: Mapping[str, Any]) -> str:
+        text = text_arg(args, "text")
+        assert text is not None
+        now = clock()
+        due = resolve_due_time(
+            now, in_minutes=number_arg(args, "in_minutes"), at=text_arg(args, "at", required=False)
+        )
+        reminder = await repo.add(text, due)
+        await changed()
+        return f"Reminder #{reminder.id} set for {spoken_time(due, now)}: {reminder.text}."
+
+    async def list_reminders(_: Mapping[str, Any]) -> str:
+        now = clock()
+        upcoming = await repo.upcoming()
+        if not upcoming:
+            return "There are no upcoming reminders."
+        lines = "; ".join(f"#{r.id} {r.text} ({spoken_time(r.due_at, now)})" for r in upcoming[:10])
+        return f"{len(upcoming)} upcoming reminder(s): {lines}."
+
+    async def cancel_reminder(args: Mapping[str, Any]) -> str:
+        reference = text_arg(args, "reminder")
+        assert reference is not None
+        reminder = _match_reminder(await repo.upcoming(), reference)
+        await repo.delete(reminder.id)
+        await changed()
+        return f"Cancelled the reminder '{reminder.text}'."
+
+    return [
+        Tool(
+            ToolSpec(
+                "set_reminder",
+                "Schedule a spoken reminder. Give either in_minutes (relative) or at (local time).",
+                schema(
+                    {
+                        "text": _string("What to remind the user about."),
+                        "in_minutes": {"type": "number", "description": "Minutes from now."},
+                        "at": _string("Local time as YYYY-MM-DDTHH:MM, or HH:MM for the next one."),
+                    },
+                    ["text"],
+                ),
+            ),
+            "Setting a reminder",
+            set_reminder,
+        ),
+        Tool(
+            ToolSpec("list_reminders", "List upcoming reminders."),
+            "Checking your reminders",
+            list_reminders,
+        ),
+        Tool(
+            ToolSpec(
+                "cancel_reminder",
+                "Cancel an upcoming reminder.",
+                schema({"reminder": _string("Reminder number or words from it.")}, ["reminder"]),
+            ),
+            "Updating your reminders",
+            cancel_reminder,
+        ),
+    ]
+
+
+# -------------------------------------------------------------------- memory
+
+
+def memory_tools(memory: MemoryService, notifier: Notifier | None = None) -> list[Tool]:
+    """``remember``, ``recall``, ``forget``."""
+
+    async def changed() -> None:
+        if notifier is not None:
+            await notifier.data_changed("memories")
+
+    async def remember(args: Mapping[str, Any]) -> str:
+        fact = text_arg(args, "fact")
+        assert fact is not None
+        await memory.remember(fact)
+        await changed()
+        return f"Stored in long-term memory: {fact}"
+
+    async def recall(args: Mapping[str, Any]) -> str:
+        query = text_arg(args, "query")
+        assert query is not None
+        found = await memory.recall(query, limit=5)
+        if not found:
+            return "Nothing relevant is stored in memory."
+        return "Relevant memories: " + "; ".join(m.record.text for m in found)
+
+    async def forget(args: Mapping[str, Any]) -> str:
+        query = text_arg(args, "query")
+        assert query is not None
+        found = await memory.recall(query, limit=1)
+        if not found:
+            raise ToolError("no stored memory matches that")
+        await memory.forget(found[0].record.id)
+        await changed()
+        return f"Forgot: {found[0].record.text}"
+
+    return [
+        Tool(
+            ToolSpec(
+                "remember",
+                "Save a lasting fact or preference about the user when they ask you to remember "
+                "something.",
+                schema({"fact": _string("The fact, as a full sentence.")}, ["fact"]),
+            ),
+            "Committing that to memory",
+            remember,
+        ),
+        Tool(
+            ToolSpec(
+                "recall",
+                "Search long-term memory for facts the user told you before.",
+                schema({"query": _string("What to look for.")}, ["query"]),
+            ),
+            "Searching my memory",
+            recall,
+        ),
+        Tool(
+            ToolSpec(
+                "forget",
+                "Delete a stored memory when the user asks you to forget something.",
+                schema({"query": _string("Words describing the memory.")}, ["query"]),
+            ),
+            "Updating my memory",
+            forget,
+        ),
+    ]
+
+
+# ------------------------------------------------------------- information
+
+
+def weather_tools(provider: WeatherProvider, default_location: str = "") -> list[Tool]:
+    """``get_weather``."""
+
+    async def get_weather(args: Mapping[str, Any]) -> str:
+        location = text_arg(args, "location", required=False) or default_location
+        if not location:
+            raise ToolError("no location given and no default location configured; ask the user")
+        report = await provider.current(location)
+        if report is None:
+            raise ToolError(f"could not find a place called '{location}'")
+        parts = [
+            f"{report.location}: {report.description}, {report.temperature_c:.0f}°C",
+            f"feels like {report.feels_like_c:.0f}°C",
+            f"humidity {report.humidity_pct:.0f}%",
+            f"wind {report.wind_kph:.0f} km/h",
+        ]
+        if report.high_c is not None and report.low_c is not None:
+            parts.append(f"today's high {report.high_c:.0f}°C, low {report.low_c:.0f}°C")
+        return ", ".join(parts) + "."
+
+    hint = f" Defaults to {default_location}." if default_location else ""
+    return [
+        Tool(
+            ToolSpec(
+                "get_weather",
+                "Get current weather and today's high/low for a place." + hint,
+                schema({"location": _string("City name, e.g. 'London'.")}),
+            ),
+            "Checking the weather",
+            get_weather,
+        )
+    ]
+
+
+def knowledge_tools(provider: KnowledgeProvider) -> list[Tool]:
+    """``lookup_encyclopedia``."""
+
+    async def lookup(args: Mapping[str, Any]) -> str:
+        topic = text_arg(args, "topic")
+        assert topic is not None
+        article = await provider.lookup(topic)
+        if article is None:
+            return f"The encyclopedia has no article about '{topic}'."
+        return f"{article.title}: {article.summary}"
+
+    return [
+        Tool(
+            ToolSpec(
+                "lookup_encyclopedia",
+                "Look up factual background on a person, place, thing or event (Wikipedia).",
+                schema({"topic": _string("The subject, e.g. 'Alan Turing'.")}, ["topic"]),
+            ),
+            "Consulting the encyclopedia",
+            lookup,
+        )
+    ]
+
+
+def web_search_tools(provider: WebSearchProvider) -> list[Tool]:
+    """``web_search``."""
+
+    async def web_search(args: Mapping[str, Any]) -> str:
+        query = text_arg(args, "query")
+        assert query is not None
+        results = await provider.search(query, limit=5)
+        if not results:
+            return "The web search returned no results."
+        return "Search results: " + " | ".join(f"{r.title}: {r.snippet}" for r in results)
+
+    return [
+        Tool(
+            ToolSpec(
+                "web_search",
+                "Search the web for current events, news or anything recent.",
+                schema({"query": _string("Search terms.")}, ["query"]),
+            ),
+            "Searching the web",
+            web_search,
+        )
+    ]
+
+
+def document_tools(search: DocumentSearch) -> list[Tool]:
+    """``search_documents``."""
+
+    async def search_documents(args: Mapping[str, Any]) -> str:
+        query = text_arg(args, "query")
+        assert query is not None
+        hits = await search.search(query, limit=4)
+        if not hits:
+            return "Nothing relevant was found in the user's documents."
+        return "Passages from the user's documents: " + " | ".join(
+            f"[{hit.path}] {hit.text}" for hit in hits
+        )
+
+    return [
+        Tool(
+            ToolSpec(
+                "search_documents",
+                "Search the user's own notes and documents for information.",
+                schema({"query": _string("What to look for.")}, ["query"]),
+            ),
+            "Searching your documents",
+            search_documents,
+        )
+    ]

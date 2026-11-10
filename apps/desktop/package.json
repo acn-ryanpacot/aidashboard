@@ -1,6 +1,6 @@
 {
   "name": "@jarvis/desktop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Jarvis OS desktop dashboard (React + Vite, packaged with Tauri).",
   "type": "module",
@@ -17,6 +17,7 @@
     "@fontsource-variable/inter": "^5.2.6",
     "@fontsource-variable/jetbrains-mono": "^5.2.6",
     "@jarvis/widget-sdk": "workspace:*",
+    "@tauri-apps/api": "^2.12.4",
     "lucide-react": "^0.534.0",
     "motion": "^12.23.0",
     "react": "^19.1.1",

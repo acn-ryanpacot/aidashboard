@@ -1,20 +1,39 @@
-"""In-memory fakes for every port, so tests never load real models."""
+"""In-memory fakes for every port, so tests never load real models or hit the network."""
 
 from __future__ import annotations
 
 import asyncio
+import zlib
 from collections.abc import AsyncIterator, Sequence
+from datetime import datetime
 from typing import TypeVar
 
+from jarvis_core.application.vectors import keywords
 from jarvis_core.domain.errors import LanguageModelError
 from jarvis_core.domain.events import VoiceEvent
-from jarvis_core.domain.models import AudioClip, ChatMessage, SynthesizedSpeech, WordTiming
+from jarvis_core.domain.models import (
+    AudioClip,
+    ChatMessage,
+    LlmEvent,
+    SynthesizedSpeech,
+    TextDelta,
+    ToolCall,
+    ToolSpec,
+    WordTiming,
+)
+from jarvis_core.domain.records import (
+    DocumentHit,
+    KnowledgeArticle,
+    SearchResult,
+    WeatherReport,
+)
 
 T = TypeVar("T")
 
 FRAME_BYTES = 2560
 SILENCE = b"\x00" * FRAME_BYTES
-SPEECH = b"\x10\x27" * (FRAME_BYTES // 2)  # constant 10000 amplitude
+SPEECH = b"\x10\x27" * (FRAME_BYTES // 2)  # constant 10000 amplitude — "Ryan"
+STRANGER = b"\x20\x4e" * (FRAME_BYTES // 2)  # constant 20000 amplitude — someone else
 WAKE = b"\x7f\x7f" * (FRAME_BYTES // 2)  # magic frame the fake wake detector reacts to
 
 
@@ -31,7 +50,7 @@ class FakeWake:
 
 class FakeVad:
     def is_speech(self, frame: bytes) -> bool:
-        return frame in (SPEECH, WAKE)
+        return frame in (SPEECH, WAKE, STRANGER)
 
 
 class FakeStt:
@@ -44,34 +63,130 @@ class FakeStt:
         return self.transcript
 
 
+Script = Sequence[str | ToolCall]
+
+
 class FakeLlm:
-    def __init__(self, reply: Sequence[str] = ("It is ", "noon. ", "Anything else?")) -> None:
-        self.reply = list(reply)
+    """Replays scripted rounds: call *n* of :meth:`stream_chat` plays ``rounds[n]``."""
+
+    def __init__(
+        self,
+        reply: Script = ("It is ", "noon. ", "Anything else?"),
+        rounds: Sequence[Script] | None = None,
+    ) -> None:
+        self.rounds = list(rounds) if rounds is not None else [reply]
         self.requests: list[list[ChatMessage]] = []
+        self.tool_offers: list[list[ToolSpec]] = []
         self.fail = False
         self.gate: asyncio.Event | None = None
 
-    async def stream_chat(self, messages: Sequence[ChatMessage]) -> AsyncIterator[str]:
+    async def stream_chat(
+        self, messages: Sequence[ChatMessage], tools: Sequence[ToolSpec] = ()
+    ) -> AsyncIterator[LlmEvent]:
+        index = len(self.requests)
         self.requests.append(list(messages))
+        self.tool_offers.append(list(tools))
         if self.fail:
             raise LanguageModelError("model offline")
-        for delta in self.reply:
+        for item in self.rounds[min(index, len(self.rounds) - 1)]:
             if self.gate is not None:
                 await self.gate.wait()
-            yield delta
+            yield TextDelta(item) if isinstance(item, str) else item
 
 
 class FakeTts:
     SAMPLE_RATE = 24_000
 
-    def __init__(self) -> None:
+    def __init__(self, seconds: float = 0.1) -> None:
         self.spoken: list[str] = []
+        self.seconds = seconds
 
     def synthesize(self, text: str) -> SynthesizedSpeech:
         self.spoken.append(text)
-        pcm = b"\x00\x00" * (self.SAMPLE_RATE // 10)  # 100 ms
+        pcm = b"\x00\x00" * int(self.SAMPLE_RATE * self.seconds)
         words = tuple(WordTiming(w, i * 0.1, i * 0.1 + 0.1) for i, w in enumerate(text.split()))
         return SynthesizedSpeech(text, AudioClip(pcm, self.SAMPLE_RATE), words)
+
+
+class FakeEmbedder:
+    """Bag-of-words hashing embedder: similar wording → similar vectors."""
+
+    DIMENSIONS = 64
+
+    def __init__(self) -> None:
+        self.calls = 0
+        self.fail = False
+
+    async def embed(self, texts: Sequence[str]) -> list[list[float]]:
+        self.calls += 1
+        if self.fail:
+            raise LanguageModelError("embedding model missing")
+        vectors = []
+        for text in texts:
+            vector = [0.0] * self.DIMENSIONS
+            for word in keywords(text):
+                vector[zlib.crc32(word.encode()) % self.DIMENSIONS] += 1.0
+            vectors.append(vector)
+        return vectors
+
+
+class FakeSpeakerEncoder:
+    """Ryan's frames embed to [1, 0]; anybody else's to [0, 1]."""
+
+    def embed(self, audio: AudioClip) -> list[float]:
+        return [1.0, 0.0] if SPEECH in audio.pcm16 else [0.0, 1.0]
+
+
+class MemoryVoiceprintStore:
+    def __init__(self, voiceprint: list[float] | None = None) -> None:
+        self.voiceprint = voiceprint
+
+    def load(self) -> list[float] | None:
+        return self.voiceprint
+
+    def save(self, voiceprint: Sequence[float]) -> None:
+        self.voiceprint = list(voiceprint)
+
+    def clear(self) -> None:
+        self.voiceprint = None
+
+
+class RecordingNotifier:
+    def __init__(self) -> None:
+        self.announcements: list[tuple[str, str]] = []
+        self.topics: list[str] = []
+
+    async def announce(self, kind: str, text: str) -> None:
+        self.announcements.append((kind, text))
+
+    async def data_changed(self, topic: str) -> None:
+        self.topics.append(topic)
+
+
+class FakeWeather:
+    async def current(self, location: str) -> WeatherReport | None:
+        if location.lower() == "atlantis":
+            return None
+        return WeatherReport(location, 21.4, 22.0, "light rain", 12.0, 80.0, 24.0, 18.0)
+
+
+class FakeKnowledge:
+    async def lookup(self, topic: str) -> KnowledgeArticle | None:
+        if topic == "nothing":
+            return None
+        return KnowledgeArticle(topic.title(), f"{topic} is notable.", "https://example.org")
+
+
+class FakeSearch:
+    async def search(self, query: str, limit: int = 5) -> list[SearchResult]:
+        return [SearchResult(f"Result for {query}", "snippet", "https://example.org")][:limit]
+
+
+class FakeDocuments:
+    async def search(self, query: str, limit: int = 4) -> list[DocumentHit]:
+        return (
+            [] if query == "nothing" else [DocumentHit("notes.md", "Passport expires March.", 0.9)]
+        )
 
 
 class RecordingSink:
@@ -83,3 +198,13 @@ class RecordingSink:
 
     def of_type(self, kind: type[T]) -> list[T]:
         return [e for e in self.events if isinstance(e, kind)]
+
+
+class FixedClock:
+    """A settable clock for time-dependent tools."""
+
+    def __init__(self, now: datetime) -> None:
+        self.now = now
+
+    def __call__(self) -> datetime:
+        return self.now

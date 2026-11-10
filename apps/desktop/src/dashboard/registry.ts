@@ -12,6 +12,7 @@ import clock from '../widgets/clock';
 import conversation from '../widgets/conversation';
 import coreLink from '../widgets/core-link';
 import { createAppPlaceholder } from '../widgets/placeholders/createAppPlaceholder';
+import tasks from '../widgets/tasks';
 
 export const widgetRegistry = new WidgetRegistry()
   .register(clock)
@@ -26,15 +27,7 @@ export const widgetRegistry = new WidgetRegistry()
       intents: ['schedule.list', 'schedule.add'],
     }),
   )
-  .register(
-    createAppPlaceholder({
-      id: 'tasks',
-      name: 'Tasks',
-      description: 'Open tasks and reminders from the Tasks app.',
-      appId: 'tasks',
-      intents: ['tasks.add', 'tasks.list', 'reminders.add'],
-    }),
-  )
+  .register(tasks)
   .register(
     createAppPlaceholder({
       id: 'news',

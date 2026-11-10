@@ -8,13 +8,17 @@ flowchart LR
     subgraph machine [Your PC: everything runs locally]
         desktop[Desktop app<br/>Tauri + React]
         core[Core service<br/>Python · FastAPI]
-        ollama[(Ollama<br/>local LLM)]
+        ollama[(Ollama<br/>LLM + embeddings)]
+        db[(SQLite<br/>tasks · reminders · memory)]
         models[(Speech models<br/>Whisper · Kokoro · openWakeWord)]
         desktop <-- "WebSocket /ws/voice<br/>PCM16 up · JSON + WAV down" --> core
         core -- HTTP --> ollama
         core --- models
+        core --- db
     end
-    mobile[Your mobile apps<br/>future] -. "REST via Tailscale<br/>Phase 6" .-> core
+    web[(Open-Meteo · Wikipedia<br/>SearXNG · MCP servers)]
+    core -. tools .-> web
+    mobile[Your mobile apps<br/>future] -. "REST /api/* via Tailscale<br/>Phase 6" .-> core
 ```
 
 ## Containers
@@ -34,23 +38,29 @@ flowchart TB
     subgraph api [api: delivery]
         ws["/ws/voice"]
         health["/api/health"]
+        rest["/api/tasks · reminders · memories"]
     end
     subgraph application [application: use cases]
         session[VoiceSession]
-        endpoint[UtteranceRecorder]
-        chunker[SentenceChunker]
-        persona[Persona · History · Greeting]
+        brain[Brain · ToolRegistry]
+        memory[MemoryService · ReminderScheduler]
+        hub[SessionHub · SpeakerVerification]
+        endpoint[UtteranceRecorder · SentenceChunker]
     end
     subgraph domain [domain: pure]
-        ports[[Ports<br/>WakeWordDetector · VoiceActivityDetector<br/>SpeechToText · LanguageModel<br/>TextToSpeech · VoiceEventSink]]
+        ports[[Ports<br/>Wake · VAD · STT · TTS · SpeakerEncoder<br/>LanguageModel · EmbeddingModel<br/>Task/Reminder repos · MemoryStore<br/>Weather · Knowledge · WebSearch · Documents<br/>VoiceEventSink · Notifier]]
         models[Models · Events · Errors]
     end
     subgraph adapters [adapters: infrastructure]
         oww[openWakeWord]
-        vad[WebRTC / Energy VAD]
+        vad[WebRTC / Silero / Energy VAD]
         fw[faster-whisper]
-        ol[Ollama]
+        ol[Ollama chat + embed]
         ko[Kokoro]
+        sb[SpeechBrain ECAPA]
+        sql[SQLite repositories]
+        webad[Open-Meteo · Wikipedia · SearXNG]
+        mcp[MCP toolset · folder index]
     end
     container{{container.py<br/>composition root}}
 
@@ -91,6 +101,8 @@ src/
 | Concern        | Approach                                                                               |
 | -------------- | -------------------------------------------------------------------------------------- |
 | Configuration  | Typed `pydantic-settings`; Vite env vars typed in `vite-env.d.ts`                       |
+| Persistence    | SQLite with versioned migrations ([ADR-0008](../adr/0008-sqlite-persistence.md)); data dir `~/.jarvis-os` |
+| Live updates   | `SessionHub` broadcasts `data_changed`; widgets refetch via `useCoreData`               |
 | Logging        | `structlog`, either human-readable or JSON                                              |
 | Errors         | Adapters raise `JarvisError` subclasses; the session reports them as `error` events     |
 | Security       | Loopback bind, WebSocket origin allow-list, strict Tauri CSP, least-privilege capabilities |

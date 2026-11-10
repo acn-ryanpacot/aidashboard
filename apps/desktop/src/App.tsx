@@ -3,16 +3,28 @@ import { motion } from 'motion/react';
 import { Captions } from './components/hud/Captions';
 import { CommandBar } from './components/hud/CommandBar';
 import { EngageOverlay } from './components/hud/EngageOverlay';
+import { EnrollmentOverlay } from './components/hud/EnrollmentOverlay';
 import { Orb } from './components/hud/Orb';
 import { StatusBar } from './components/hud/StatusBar';
 import { VOICE_WS_URL } from './config';
+import { usePushToTalk } from './core/voice/usePushToTalk';
 import { VoiceAssistantProvider } from './core/voice/VoiceAssistantProvider';
 import { DashboardZone } from './dashboard/DashboardZone';
 
-/** Root layout: status bar, two widget zones and the central voice core. */
+/** Root: provides the voice assistant to the HUD. */
 export function App() {
   return (
     <VoiceAssistantProvider url={VOICE_WS_URL}>
+      <Hud />
+    </VoiceAssistantProvider>
+  );
+}
+
+/** Layout: status bar, two widget zones and the central voice core. */
+function Hud() {
+  usePushToTalk();
+  return (
+    <>
       <div className="hud-backdrop" aria-hidden />
       <div className="relative flex h-screen flex-col overflow-hidden">
         <StatusBar />
@@ -34,6 +46,7 @@ export function App() {
         </main>
       </div>
       <EngageOverlay />
-    </VoiceAssistantProvider>
+      <EnrollmentOverlay />
+    </>
   );
 }

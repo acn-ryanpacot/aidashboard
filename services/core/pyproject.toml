@@ -1,6 +1,6 @@
 [project]
 name = "jarvis-core"
-version = "0.1.0"
+version = "0.2.0"
 description = "Jarvis OS core service: voice pipeline, AI brain and widget host."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -22,7 +22,12 @@ voice = [
   "openwakeword>=0.6",
   "kokoro>=0.9.4",
   "webrtcvad-wheels>=2.0.14",
+  "silero-vad>=5.1",
 ]
+# Voice ID (speaker verification). Requires the voice extra as well.
+speaker = ["speechbrain>=1.0"]
+# Model Context Protocol client for external tool servers.
+mcp = ["mcp>=1.2"]
 
 [project.scripts]
 jarvis-core = "jarvis_core.__main__:main"
@@ -82,7 +87,10 @@ mypy_path = "src"
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["faster_whisper.*", "openwakeword.*", "kokoro.*", "webrtcvad.*"]
+module = [
+  "faster_whisper.*", "openwakeword.*", "kokoro.*", "webrtcvad.*",
+  "torch.*", "silero_vad.*", "speechbrain.*", "mcp.*",
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

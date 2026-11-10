@@ -7,13 +7,17 @@ Every setting can be overridden with an environment variable prefixed with
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from jarvis_core.application.persona import Formality, Humour, Verbosity
+from jarvis_core.application.voice_session import BargeInMode
+
 WakeEngine = Literal["openwakeword", "none"]
-VadEngine = Literal["webrtc", "energy"]
+VadEngine = Literal["webrtc", "energy", "silero"]
 SttEngine = Literal["faster_whisper", "none"]
 TtsEngine = Literal["kokoro", "none"]
 
@@ -25,6 +29,15 @@ DEFAULT_ALLOWED_ORIGINS = [
     "http://tauri.localhost",
     "https://tauri.localhost",
 ]
+
+
+class McpServerSettings(BaseModel):
+    """One stdio MCP server to launch (see ``docs/guides/mcp.md``)."""
+
+    name: str = Field(pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{0,30}$")
+    command: str
+    args: list[str] = Field(default_factory=list)
+    env: dict[str, str] = Field(default_factory=dict)
 
 
 class Settings(BaseSettings):
@@ -51,6 +64,9 @@ class Settings(BaseSettings):
         default="How can I help you {user_name}?",
         description="Spoken verbatim after the wake word. `{user_name}` is substituted.",
     )
+    persona_formality: Formality = "balanced"
+    persona_verbosity: Verbosity = "balanced"
+    persona_humour: Humour = "dry"
 
     # --- Wake word ----------------------------------------------------------
     wake_engine: WakeEngine = "openwakeword"
@@ -75,6 +91,20 @@ class Settings(BaseSettings):
         description="Keep listening after an answer (0 = require wake word again).",
     )
     max_utterance_ms: int = Field(default=15000, ge=2000)
+    barge_in: BargeInMode = Field(
+        default="wake_word", description="Interrupt Jarvis: wake_word, voice, or off."
+    )
+    barge_in_min_speech_ms: int = Field(default=400, ge=160)
+    playback_grace_ms: int = Field(
+        default=4000, ge=500, description="Assume a segment finished if not acknowledged."
+    )
+
+    # --- Voice ID -------------------------------------------------------------
+    speaker_verification: bool = Field(
+        default=False, description="Only answer the enrolled voice (needs the speaker extra)."
+    )
+    speaker_threshold: float = Field(default=0.30, ge=-1.0, le=1.0)
+    speaker_enrollment_samples: int = Field(default=3, ge=1, le=10)
 
     # --- Speech-to-text -------------------------------------------------------
     stt_engine: SttEngine = "faster_whisper"
@@ -88,6 +118,31 @@ class Settings(BaseSettings):
     llm_temperature: float = Field(default=0.6, ge=0.0, le=2.0)
     llm_timeout_s: float = Field(default=120.0, gt=0)
     history_messages: int = Field(default=20, ge=0, description="Past messages kept as context.")
+
+    # --- Brain: tools & memory -----------------------------------------------
+    tools_enabled: bool = True
+    max_tool_rounds: int = Field(default=4, ge=1, le=10)
+    memory_enabled: bool = True
+    embedding_model: str = "nomic-embed-text"
+    memory_min_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    memory_top_k: int = Field(default=3, ge=0, le=20)
+    weather_enabled: bool = True
+    default_location: str = Field(default="", description="Used when no place is named.")
+    encyclopedia_enabled: bool = True
+    encyclopedia_user_agent: str = Field(
+        default="JarvisOS/0.2 (+https://localhost; self-hosted personal assistant) python-httpx",
+        description="Wikimedia asks for a contact URL or email in the User-Agent.",
+    )
+    searxng_url: str = Field(default="", description="Self-hosted SearXNG for web search.")
+    documents_dir: str = Field(default="", description="Folder of notes to search (RAG).")
+    mcp_servers: list[McpServerSettings] = Field(default_factory=list)
+    reminder_poll_s: float = Field(default=5.0, ge=1.0)
+
+    # --- Storage --------------------------------------------------------------
+    data_dir: Path = Field(
+        default_factory=lambda: Path.home() / ".jarvis-os",
+        description="Database, voiceprint and model caches.",
+    )
 
     # --- Text-to-speech -------------------------------------------------------
     tts_engine: TtsEngine = "kokoro"

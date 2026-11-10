@@ -9,21 +9,30 @@
 - Widget SDK, registry, built-in widgets, mobile-app placeholders
 - Tauri shell
 
-## Phase 2: Voice polish
+## Phase 2: Voice polish ✅ (v0.2.0)
 
-- **Barge-in**: say the wake word, or just talk, to interrupt Jarvis mid-sentence
-- Push-to-talk global hotkey (`tauri-plugin-global-shortcut`)
-- UI sound design: subtle chimes for wake and end of listening
-- Speaker verification, so Jarvis answers only your voice (SpeechBrain ECAPA)
-- Silero VAD adapter; per-stage latency metrics in the Systems widget
+- **Barge-in**: say the wake word, or just talk, to interrupt Jarvis mid-sentence ([ADR-0009](adr/0009-barge-in-and-playback-watchdog.md))
+- Push-to-talk: Ctrl+Space in the window, Ctrl+Shift+Space system-wide (Tauri global shortcut)
+- UI sound design: synthesized earcons for listening, heard, notifications and errors
+- Voice ID: SpeechBrain ECAPA speaker verification with in-app enrollment ([ADR-0010](adr/0010-voice-id.md))
+- Silero VAD adapter; per-turn latency metrics in the Systems widget
+- Playback watchdog, so Jarvis can never get stuck "speaking"
 
-## Phase 3: The brain
+## Phase 3: The brain ✅ (v0.2.0)
 
-- LLM **tool calling** with a tool registry; widgets expose `voiceIntents` as tools
-- Long-term memory: SQLite + `sqlite-vec`, with embeddings from Ollama (`nomic-embed-text`)
+- LLM **tool calling** with a bounded agent loop ([ADR-0007](adr/0007-tool-calling-agent-loop.md))
+- Tools: time, tasks, reminders (spoken when due), memory, weather, encyclopedia, web search, documents
+- Long-term memory in SQLite with Ollama embeddings, keyword fallback and an audit API ([ADR-0008](adr/0008-sqlite-persistence.md))
 - Persona settings (formality, verbosity, humour)
-- Web search through self-hosted SearXNG; ask questions over a local documents folder (RAG)
-- MCP client support, so external tool servers plug in
+- Local document search (RAG) and SearXNG web search
+- MCP client: external tool servers plug straight into the brain
+- The Tasks widget is now live, backed by `/api/tasks` and refreshed by `data_changed` events
+
+### Carried forward
+
+- Echo-cancelled `voice` barge-in through speakers (today a headset is recommended)
+- A Memories widget and a persona editor in the UI (the API exists)
+- Parallel tool calls
 
 ## Phase 4: Dashboard
 

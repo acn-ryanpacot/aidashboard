@@ -1,14 +1,14 @@
 /**
  * The voice assistant controller: glues the WebSocket client, microphone,
- * speech player and state store together. Contains no React code.
+ * speech player, earcons and state store together. Contains no React code.
  *
  * @module
  */
 import { type AssistantStoreApi, createAssistantStore } from '../../state/assistantStore';
-import type { ActiveCaption } from './SpeechPlayer';
+import { EarconPlayer, earconForTransition } from '../audio/earcons';
 import { MicrophoneCapture } from './MicrophoneCapture';
-import type { ServerMessage, SpeechSegmentMessage } from './protocol';
-import { SpeechPlayer } from './SpeechPlayer';
+import type { AssistantState, ServerMessage, SpeechSegmentMessage } from './protocol';
+import { type ActiveCaption, SpeechPlayer } from './SpeechPlayer';
 import { VoiceClient } from './VoiceClient';
 
 const DEFAULT_SAMPLE_RATE = 16_000;
@@ -29,6 +29,7 @@ export class VoiceAssistant {
   #context: AudioContext | null = null;
   #mic: MicrophoneCapture | null = null;
   #player: SpeechPlayer | null = null;
+  #earcons: EarconPlayer | null = null;
 
   constructor(url: string) {
     this.#url = url;
@@ -60,6 +61,7 @@ export class VoiceAssistant {
     this.#context = null;
     this.#mic = null;
     this.#player = null;
+    this.#earcons = null;
     this.store.getState().setEngaged(false);
   }
 
@@ -74,6 +76,8 @@ export class VoiceAssistant {
       this.#player = new SpeechPlayer(this.#context, (segmentId) =>
         this.#client?.send({ type: 'playback_ended', segment_id: segmentId }),
       );
+      this.#earcons = new EarconPlayer(this.#context);
+      this.#earcons.enabled = this.store.getState().soundsEnabled;
     }
     await this.#context.resume();
     this.store.getState().setEngaged(true);
@@ -104,10 +108,22 @@ export class VoiceAssistant {
     this.store.getState().setMic(false);
   }
 
+  /** Turn UI sounds on or off (persisted). */
+  setSoundsEnabled(enabled: boolean): void {
+    this.store.getState().setSoundsEnabled(enabled);
+    if (this.#earcons) this.#earcons.enabled = enabled;
+  }
+
   /** Wake the assistant manually (same as saying the wake word). */
   activate(): void {
     this.#player?.stop();
     this.#client?.send({ type: 'activate' });
+  }
+
+  /** Push-to-talk: start listening right away, without the greeting. */
+  listen(): void {
+    this.#player?.stop();
+    this.#client?.send({ type: 'listen' });
   }
 
   /** Ask a typed question. */
@@ -118,10 +134,21 @@ export class VoiceAssistant {
     this.#client?.send({ type: 'text_query', text: trimmed });
   }
 
-  /** Interrupt the current answer. */
+  /** Interrupt the current answer (or enrollment). */
   cancel(): void {
     this.#player?.stop();
     this.#client?.send({ type: 'cancel' });
+  }
+
+  /** Begin voice-ID enrollment (the user speaks a few sentences). */
+  enrollVoice(): void {
+    this.#player?.stop();
+    this.#client?.send({ type: 'enroll_voice' });
+  }
+
+  /** Close the enrollment overlay after it has finished. */
+  dismissEnrollment(): void {
+    this.store.getState().setEnrollment(null);
   }
 
   /**
@@ -146,9 +173,11 @@ export class VoiceAssistant {
 
   #handleMicFrame(frame: ArrayBuffer): void {
     const { state, capabilities } = this.store.getState();
-    const wantsAudio =
-      state === 'listening' || (state === 'idle' && capabilities?.wake_word_enabled);
-    if (wantsAudio) this.#client?.sendAudio(frame);
+    if (
+      wantsAudio(state, capabilities?.wake_word_enabled ?? false, capabilities?.barge_in ?? 'off')
+    ) {
+      this.#client?.sendAudio(frame);
+    }
   }
 
   #handleMessage(message: ServerMessage): void {
@@ -157,20 +186,53 @@ export class VoiceAssistant {
       case 'ready':
         store.setCapabilities(message);
         break;
-      case 'state':
+      case 'state': {
+        const cue = earconForTransition(store.state, message.state);
+        if (cue) this.#earcons?.play(cue);
         store.setState(message.state);
+        break;
+      }
+      case 'interrupted':
+        this.#player?.stop();
         break;
       case 'transcript':
         store.addMessage('user', message.text);
         break;
       case 'assistant_delta':
+        store.setActiveTool(null);
         store.appendAssistant(message.text);
+        break;
+      case 'tool':
+        store.setActiveTool(message.label);
         break;
       case 'turn_complete':
         store.completeAssistant(message.text);
         break;
+      case 'metrics':
+        store.setMetrics(message);
+        break;
+      case 'speaker_rejected':
+        store.markRejected();
+        this.#earcons?.play('error');
+        break;
+      case 'enrollment':
+        store.setEnrollment(message);
+        if (message.status === 'complete') {
+          this.#earcons?.play('notify');
+          const caps = store.capabilities;
+          if (caps) store.setCapabilities({ ...caps, speaker_enrolled: true });
+        }
+        break;
+      case 'notification':
+        store.addMessage('notice', message.text);
+        this.#earcons?.play('notify');
+        break;
+      case 'data_changed':
+        store.bumpData(message.topic);
+        break;
       case 'error':
         store.addMessage('system', message.message, true);
+        this.#earcons?.play('error');
         break;
       case 'wake':
       case 'speech_segment':
@@ -186,5 +248,27 @@ export class VoiceAssistant {
       // Audio is locked (not engaged yet): acknowledge so the server moves on.
       this.#client?.send({ type: 'playback_ended', segment_id: segment.segment_id });
     }
+  }
+}
+
+/**
+ * Whether microphone frames are useful to the server right now.
+ *
+ * - idle: only if a wake word is listening;
+ * - listening: always;
+ * - thinking / speaking: only for barge-in.
+ */
+export function wantsAudio(
+  state: AssistantState,
+  wakeWordEnabled: boolean,
+  bargeIn: 'off' | 'wake_word' | 'voice',
+): boolean {
+  switch (state) {
+    case 'idle':
+      return wakeWordEnabled;
+    case 'listening':
+      return true;
+    default:
+      return bargeIn === 'voice' || (bargeIn === 'wake_word' && wakeWordEnabled);
   }
 }

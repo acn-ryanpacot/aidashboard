@@ -4,30 +4,33 @@ A personal, voice-driven AI dashboard. Say **"Hey Jarvis"** (or your own custom 
 
 The stack is **local-first and zero-cost.** Every component is free and open source and runs on your machine. There are no subscriptions, and no audio leaves the device.
 
-![Jarvis OS dashboard while thinking](docs/assets/dashboard-thinking.jpg)
+![Jarvis OS dashboard: a reminder just fired and the Tasks widget updated by voice](docs/assets/dashboard-v0.2.jpg)
 
 ## Highlights
 
 - **Wake word → fixed greeting**, served from cache in under 300 ms. The greeting never goes through the LLM.
 - **Streaming answers.** Jarvis speaks the first sentence while the model is still writing the rest.
-- **Reactive visualizer.** A Canvas orb is driven by a Web Audio `AnalyserNode`. It reacts to Jarvis's voice when speaking and to yours when listening.
-- **Karaoke captions** use per-word timestamps from Kokoro TTS.
-- **Modular dashboard** built on a typed widget SDK. Widgets from your future mobile apps already have reserved slots.
-- **Hexagonal architecture.** You can swap the LLM, STT, TTS, wake word or VAD by writing one adapter.
-- **Engineered properly.** Strict typing (mypy, TypeScript), linters, 80+ tests running on fakes, CI, ADRs, and docs in Markdown and in code.
+- **It does things.** Tool calling covers tasks, spoken reminders, long-term memory, weather, encyclopedia lookups, web search, your own documents, and any MCP server.
+- **Natural turn-taking.** Interrupt by saying the wake word (or just talking), push-to-talk with Ctrl+Space, and earcons that tell you when it is listening.
+- **Answers only you** (optional). SpeechBrain voice ID with one-minute in-app enrollment.
+- **Reactive visualizer and karaoke captions**, plus a live latency readout for every turn.
+- **Modular dashboard** on a typed widget SDK. The Tasks widget is live today, and the reserved tiles wait for your mobile apps.
+- **Engineered properly.** Hexagonal architecture, strict typing (mypy, TypeScript), 170+ tests on fakes, CI, ten ADRs, and docs in Markdown and in code.
 
 ## Stack
 
 | Layer        | Technology                                                                |
 | ------------ | ------------------------------------------------------------------------- |
-| Desktop      | Tauri 2 (Rust shell)                                                      |
+| Desktop      | Tauri 2 (Rust shell, global push-to-talk shortcut)                        |
 | UI           | React 19, TypeScript, Vite, Tailwind CSS 4, Motion, Zustand, Lucide       |
-| Core service | Python 3.12, FastAPI, WebSockets, Pydantic                                |
+| Core service | Python 3.12, FastAPI, WebSockets, Pydantic, SQLite                        |
 | Wake word    | openWakeWord                                                              |
-| Endpointing  | WebRTC VAD (or a built-in energy VAD)                                     |
+| Endpointing  | WebRTC VAD, Silero VAD, or a built-in energy VAD                          |
 | Speech → text| faster-whisper                                                            |
-| Brain        | Ollama (default `llama3.2:3b`)                                            |
+| Brain        | Ollama (default `llama3.2:3b`) with tool calling; `nomic-embed-text` for memory |
 | Text → speech| Kokoro-82M (British voice `bm_george`)                                    |
+| Voice ID     | SpeechBrain ECAPA-TDNN (optional)                                         |
+| Knowledge    | Open-Meteo, Wikipedia, SearXNG (optional), local documents, MCP servers   |
 
 ## Quick start
 
@@ -37,6 +40,7 @@ Prerequisites: [Node 22+](https://nodejs.org), [uv](https://docs.astral.sh/uv/) 
 corepack enable                      # provides pnpm
 pnpm install
 ollama pull llama3.2:3b
+ollama pull nomic-embed-text
 cd services/core && uv sync --group dev --extra voice && cd ../..
 ```
 
@@ -47,7 +51,7 @@ pnpm dev:core      # core service on http://127.0.0.1:8765
 pnpm dev           # dashboard on http://localhost:5173  (or: pnpm dev:app for the Tauri window)
 ```
 
-Click **Engage**, allow the microphone, and say *"Hey Jarvis"*.
+Click **Engage**, allow the microphone, and say *"Hey Jarvis"*. Then try *"add buy milk to my tasks"*, *"remind me to stretch in ten minutes"* or *"what's the weather in Tokyo?"*.
 
 ## Repository layout
 
@@ -77,9 +81,9 @@ jarvis-os/
 
 - [Getting started](docs/getting-started.md)
 - [Architecture overview](docs/architecture/overview.md)
-- [Voice pipeline](docs/architecture/voice-pipeline.md) and [protocol](docs/architecture/voice-protocol.md)
+- [Voice pipeline](docs/architecture/voice-pipeline.md), [brain, tools and memory](docs/architecture/brain.md), and [protocol and REST API](docs/architecture/voice-protocol.md)
 - [Configuration reference](docs/configuration.md)
-- Guides: [custom "Hello Jarvis" wake word](docs/guides/custom-wake-word.md), [adding a widget](docs/guides/adding-a-widget.md), [swapping an AI component](docs/guides/adding-an-adapter.md)
+- Guides: [custom "Hello Jarvis" wake word](docs/guides/custom-wake-word.md), [voice ID](docs/guides/voice-id.md), [knowledge sources](docs/guides/web-search.md), [MCP servers](docs/guides/mcp.md), [adding a widget](docs/guides/adding-a-widget.md), [adding a tool](docs/guides/adding-a-tool.md), [swapping an AI component](docs/guides/adding-an-adapter.md)
 - [Design system](docs/design/design-system.md), [Roadmap](docs/roadmap.md), [Decision records](docs/adr/index.md)
 
 ## License

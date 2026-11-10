@@ -1,5 +1,5 @@
 /**
- * TypeScript mirror of the `/ws/voice` wire protocol.
+ * TypeScript mirror of the `/ws/voice` wire protocol (version 2).
  *
  * Source of truth: `services/core/src/jarvis_core/api/protocol.py`.
  * Keep both files in sync (see docs/architecture/voice-protocol.md).
@@ -7,8 +7,14 @@
  * @module
  */
 
+/** Protocol version this client implements. */
+export const PROTOCOL_VERSION = 2;
+
 /** What the assistant is doing. Drives the orb animation. */
 export type AssistantState = 'idle' | 'listening' | 'thinking' | 'speaking';
+
+/** How the user may interrupt Jarvis. */
+export type BargeInMode = 'off' | 'wake_word' | 'voice';
 
 /** Timing of one spoken word, in seconds from the start of its segment. */
 export interface WordTiming {
@@ -28,6 +34,10 @@ export interface ReadyMessage {
   readonly wake_model: string | null;
   readonly speech_input_enabled: boolean;
   readonly speech_output_enabled: boolean;
+  readonly barge_in: BargeInMode;
+  readonly speaker_verification_enabled: boolean;
+  readonly speaker_enrolled: boolean;
+  readonly tools: readonly string[];
   readonly input_sample_rate: number;
   readonly input_frame_samples: number;
 }
@@ -41,6 +51,11 @@ export interface WakeMessage {
   readonly type: 'wake';
 }
 
+/** Stop playback immediately: the user cut Jarvis off. */
+export interface InterruptedMessage {
+  readonly type: 'interrupted';
+}
+
 export interface TranscriptMessage {
   readonly type: 'transcript';
   readonly text: string;
@@ -51,11 +66,18 @@ export interface AssistantDeltaMessage {
   readonly text: string;
 }
 
+/** The brain is running a tool. */
+export interface ToolMessage {
+  readonly type: 'tool';
+  readonly name: string;
+  readonly label: string;
+}
+
 /** Header describing the WAV binary frame that immediately follows it. */
 export interface SpeechSegmentMessage {
   readonly type: 'speech_segment';
   readonly segment_id: string;
-  readonly kind: 'greeting' | 'answer';
+  readonly kind: 'greeting' | 'answer' | 'announcement';
   readonly text: string;
   readonly duration: number;
   readonly words: readonly WordTiming[];
@@ -64,6 +86,43 @@ export interface SpeechSegmentMessage {
 export interface TurnCompleteMessage {
   readonly type: 'turn_complete';
   readonly text: string;
+}
+
+/** Latency breakdown of the last turn, in milliseconds. */
+export interface MetricsMessage {
+  readonly type: 'metrics';
+  readonly stt_ms: number | null;
+  readonly first_token_ms: number | null;
+  readonly first_audio_ms: number | null;
+  readonly total_ms: number;
+  readonly tools: readonly string[];
+}
+
+export interface SpeakerRejectedMessage {
+  readonly type: 'speaker_rejected';
+  readonly score: number;
+}
+
+export type EnrollmentStatus = 'recording' | 'complete' | 'cancelled' | 'failed';
+
+export interface EnrollmentMessage {
+  readonly type: 'enrollment';
+  readonly status: EnrollmentStatus;
+  readonly collected: number;
+  readonly required: number;
+}
+
+/** A proactive message, e.g. a reminder that just fired. */
+export interface NotificationMessage {
+  readonly type: 'notification';
+  readonly kind: string;
+  readonly text: string;
+}
+
+/** Server data changed; widgets showing `topic` should refetch. */
+export interface DataChangedMessage {
+  readonly type: 'data_changed';
+  readonly topic: string;
 }
 
 export interface ErrorMessage {
@@ -75,28 +134,44 @@ export type ServerMessage =
   | ReadyMessage
   | StateMessage
   | WakeMessage
+  | InterruptedMessage
   | TranscriptMessage
   | AssistantDeltaMessage
+  | ToolMessage
   | SpeechSegmentMessage
   | TurnCompleteMessage
+  | MetricsMessage
+  | SpeakerRejectedMessage
+  | EnrollmentMessage
+  | NotificationMessage
+  | DataChangedMessage
   | ErrorMessage;
 
 // ------------------------------------------------------------ client → server
 
 export type ClientMessage =
   | { readonly type: 'activate' }
+  | { readonly type: 'listen' }
   | { readonly type: 'text_query'; readonly text: string }
   | { readonly type: 'playback_ended'; readonly segment_id: string }
-  | { readonly type: 'cancel' };
+  | { readonly type: 'cancel' }
+  | { readonly type: 'enroll_voice' };
 
 const SERVER_MESSAGE_TYPES = new Set<ServerMessage['type']>([
   'ready',
   'state',
   'wake',
+  'interrupted',
   'transcript',
   'assistant_delta',
+  'tool',
   'speech_segment',
   'turn_complete',
+  'metrics',
+  'speaker_rejected',
+  'enrollment',
+  'notification',
+  'data_changed',
   'error',
 ]);
 

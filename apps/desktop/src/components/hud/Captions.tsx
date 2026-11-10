@@ -40,22 +40,39 @@ function useLiveCaption(): CaptionView | null {
   return view;
 }
 
+/** `true` for a few seconds after the server ignored an unrecognised voice. */
+function useRecentlyRejected(durationMs = 2500): boolean {
+  const rejectedAt = useAssistant((s) => s.rejectedAt);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    if (rejectedAt === null) return;
+    setVisible(true);
+    const timer = setTimeout(() => setVisible(false), durationMs);
+    return () => clearTimeout(timer);
+  }, [rejectedAt, durationMs]);
+  return visible;
+}
+
 /** Karaoke-style subtitles under the orb, or a contextual hint when silent. */
 export function Captions() {
   const caption = useLiveCaption();
   const state = useAssistant((s) => s.state);
   const capabilities = useAssistant((s) => s.capabilities);
   const lastUser = useAssistant((s) => s.entries.findLast((e) => e.speaker === 'user')?.text);
+  const activeTool = useAssistant((s) => s.activeTool);
+  const rejected = useRecentlyRejected();
 
   const phrase = capabilities?.wake_word_enabled ? wakePhrase(capabilities.wake_model) : null;
   const hint =
     state === 'listening'
       ? 'Listening…'
       : state === 'thinking'
-        ? 'Thinking…'
-        : phrase
-          ? `Say “${phrase}”, or tap the core`
-          : 'Tap the core or type below';
+        ? `${activeTool ?? 'Thinking'}…`
+        : rejected
+          ? 'Voice not recognised'
+          : phrase
+            ? `Say “${phrase}”, tap the core, or Ctrl+Space`
+            : 'Tap the core, press Ctrl+Space, or type below';
 
   return (
     <div className="flex min-h-[7.5rem] w-full max-w-3xl flex-col items-center gap-3 text-center">

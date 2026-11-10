@@ -4,8 +4,8 @@
  * @module
  */
 
-/** Who wrote a transcript entry. */
-export type Speaker = 'user' | 'assistant' | 'system';
+/** Who wrote a transcript entry (`notice` = proactive message such as a reminder). */
+export type Speaker = 'user' | 'assistant' | 'system' | 'notice';
 
 /** One line of the visible conversation. */
 export interface ConversationEntry {

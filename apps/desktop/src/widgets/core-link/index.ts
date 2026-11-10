@@ -6,9 +6,9 @@ export default defineWidget({
   manifest: {
     id: 'core-link',
     name: 'Systems',
-    description: 'Status of the wake word, speech and microphone subsystems.',
+    description: 'Subsystem status, voice ID and last-turn latency.',
     version: '1.0.0',
-    defaultSize: { cols: 2, rows: 2 },
+    defaultSize: { cols: 2, rows: 3 },
     source: { kind: 'builtin' },
   },
   component: CoreLinkWidget,

@@ -52,10 +52,15 @@ nav:
   - Architecture:
       - Overview: architecture/overview.md
       - Voice pipeline: architecture/voice-pipeline.md
-      - Voice protocol: architecture/voice-protocol.md
+      - Brain, tools & memory: architecture/brain.md
+      - Voice protocol & REST: architecture/voice-protocol.md
   - Guides:
       - Custom wake word: guides/custom-wake-word.md
+      - Voice ID: guides/voice-id.md
+      - Knowledge sources: guides/web-search.md
+      - MCP servers: guides/mcp.md
       - Adding a widget: guides/adding-a-widget.md
+      - Adding a tool: guides/adding-a-tool.md
       - Swapping an AI component: guides/adding-an-adapter.md
   - Design system: design/design-system.md
   - Roadmap: roadmap.md
@@ -68,3 +73,7 @@ nav:
       - adr/0004-websocket-voice-transport.md
       - adr/0005-tauri-desktop-shell.md
       - adr/0006-sentence-streaming-and-playback-acks.md
+      - adr/0007-tool-calling-agent-loop.md
+      - adr/0008-sqlite-persistence.md
+      - adr/0009-barge-in-and-playback-watchdog.md
+      - adr/0010-voice-id.md

@@ -19,6 +19,7 @@
 ```bash
 pnpm install
 ollama pull llama3.2:3b
+ollama pull nomic-embed-text      # long-term memory & document search
 cd services/core
 uv sync --group dev --extra voice
 ```
@@ -38,6 +39,10 @@ pnpm dev:app      # native window (requires Rust)
 ```
 
 Click **Engage**, allow microphone access, and say **"Hey Jarvis"**. To use the exact phrase **"Hello Jarvis"**, train a custom model as described in [Custom wake word](guides/custom-wake-word.md).
+
+Optional extras: `--extra speaker` (voice ID, see [Voice ID](guides/voice-id.md)) and `--extra mcp` (external tool servers, see [MCP servers](guides/mcp.md)).
+
+Try: *"Hey Jarvis"*, then *"add buy milk to my tasks"*, *"remind me to stretch in ten minutes"*, *"what's the weather in London?"*, *"remember that my passport expires in March"*. Interrupt by saying *"Hey Jarvis"* again, or press **Ctrl+Space** to talk without the wake word.
 
 ## Text-only mode (no speech stack)
 

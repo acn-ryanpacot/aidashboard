@@ -12,7 +12,7 @@ router = APIRouter(tags=["system"])
 
 
 class HealthResponse(BaseModel):
-    """Service status and which voice capabilities are active."""
+    """Service status and which capabilities are active."""
 
     status: str
     version: str
@@ -20,12 +20,19 @@ class HealthResponse(BaseModel):
     wake_word: bool
     speech_input: bool
     speech_output: bool
+    barge_in: str
+    speaker_verification: bool
+    speaker_enrolled: bool
+    memory: bool
+    tools: list[str]
+    clients: int
 
 
 @router.get("/api/health", response_model=HealthResponse)
 async def health(request: Request) -> HealthResponse:
     """Report that the service is up and what it can do."""
     container: Container = request.app.state.container
+    speaker = container.speaker
     return HealthResponse(
         status="ok",
         version=__version__,
@@ -33,4 +40,10 @@ async def health(request: Request) -> HealthResponse:
         wake_word=container.wake_factory is not None,
         speech_input=container.stt is not None,
         speech_output=container.tts is not None,
+        barge_in=container.settings.barge_in,
+        speaker_verification=speaker is not None,
+        speaker_enrolled=bool(speaker and speaker.enrolled),
+        memory=container.memory is not None,
+        tools=[spec.name for spec in container.tools.specs()],
+        clients=len(container.hub),
     )
