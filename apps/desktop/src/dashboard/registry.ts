@@ -14,6 +14,7 @@ import conversation from '../widgets/conversation';
 import coreLink from '../widgets/core-link';
 import memories from '../widgets/memories';
 import news from '../widgets/news';
+import portfolio from '../widgets/portfolio';
 import schedule from '../widgets/schedule';
 import system from '../widgets/system';
 import tasks from '../widgets/tasks';
@@ -26,6 +27,7 @@ export const widgetRegistry = new WidgetRegistry()
   .register(conversation)
   .register(tasks)
   .register(news)
+  .register(portfolio)
   .register(memories)
   .register(system)
   .register(coreLink);

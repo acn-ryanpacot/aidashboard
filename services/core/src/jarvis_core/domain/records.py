@@ -7,7 +7,7 @@ widgets and (later) the mobile apps read and write it through the REST API.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,3 +182,110 @@ class SystemStatus:
     memory_total_gb: float
     gpus: tuple[GpuStatus, ...] = ()
     uptime_s: float = 0.0
+
+
+# --------------------------------------------------------------- portfolio
+#
+# Read models for stock portfolios kept in a companion app (PisoTiyempo).
+# Amounts are in the market's currency (pesos for the PSE); percentages are
+# in percent (``1.5`` means +1.5 %), matching the source app.
+
+
+@dataclass(frozen=True, slots=True)
+class PortfolioSummary:
+    """Totals for the whole (real-money) portfolio.
+
+    Attributes:
+        as_of: Trading date of the prices used, if known.
+        market_value: Current value of all holdings.
+        cost_basis: What the holdings cost.
+        unrealized_pnl: ``market_value - cost_basis``.
+        unrealized_pct: Unrealized P/L in percent of the cost basis.
+        day_change: Value change on the last trading day.
+        holdings: Number of positions.
+    """
+
+    as_of: date | None
+    market_value: float
+    cost_basis: float
+    unrealized_pnl: float
+    unrealized_pct: float
+    day_change: float
+    holdings: int
+
+
+@dataclass(frozen=True, slots=True)
+class StockHolding:
+    """One position.
+
+    Attributes:
+        symbol: Ticker, e.g. ``JFC``.
+        sector: Sector name ("" if unknown).
+        shares: Number of shares held.
+        avg_cost: Average cost per share.
+        last_price: Latest close, if known.
+        change_pct: Change on the last trading day, in percent.
+        market_value: ``shares * last_price``.
+        unrealized_pnl: Unrealized profit or loss.
+        unrealized_pct: Unrealized P/L in percent.
+    """
+
+    symbol: str
+    sector: str
+    shares: int
+    avg_cost: float
+    last_price: float | None
+    change_pct: float | None
+    market_value: float
+    unrealized_pnl: float
+    unrealized_pct: float
+
+
+@dataclass(frozen=True, slots=True)
+class StockAnalysis:
+    """The source app's daily technical read of one stock.
+
+    Attributes:
+        symbol: Ticker.
+        name: Company name.
+        sector: Sector name.
+        close: Latest close.
+        change_pct: Change on the last trading day, in percent.
+        score: Composite score from -100 (weak) to +100 (strong).
+        stance: The app's label, e.g. ``BUY`` or ``HOLD``.
+        rsi14: 14-day relative strength index (0-100).
+        above_sma50: Whether the close is above the 50-day average.
+        above_sma200: Whether the close is above the 200-day average.
+        return_3m_pct: Three-month return in percent.
+        is_liquid: Whether it trades enough to enter and exit easily.
+    """
+
+    symbol: str
+    name: str
+    sector: str
+    close: float
+    change_pct: float | None
+    score: int
+    stance: str
+    rsi14: float | None
+    above_sma50: bool | None
+    above_sma200: bool | None
+    return_3m_pct: float | None
+    is_liquid: bool
+
+
+@dataclass(frozen=True, slots=True)
+class PortfolioSnapshot:
+    """Everything read from the portfolio app in one go.
+
+    Attributes:
+        summary: Portfolio totals.
+        holdings: Open positions.
+        analyses: Daily analyses of the stocks the app tracks.
+        source: How it was read, e.g. ``feed`` (live API) or ``files`` (export).
+    """
+
+    summary: PortfolioSummary
+    holdings: tuple[StockHolding, ...]
+    analyses: tuple[StockAnalysis, ...]
+    source: str

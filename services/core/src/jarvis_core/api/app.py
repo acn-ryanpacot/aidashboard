@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from jarvis_core import __version__
-from jarvis_core.api.routes import dashboard, data, health, voice_ws
+from jarvis_core.api.routes import apps, dashboard, data, health, voice_ws
 from jarvis_core.config import Settings
 from jarvis_core.container import Container, build_container_async
 
@@ -58,5 +58,6 @@ def create_app(settings: Settings | None = None, *, container: Container | None 
     app.include_router(health.router)
     app.include_router(data.router)
     app.include_router(dashboard.router)
+    app.include_router(apps.router)
     app.include_router(voice_ws.router)
     return app

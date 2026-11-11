@@ -185,6 +185,22 @@ BUILTIN_GROUPS: tuple[ToolGroup, ...] = (
         ),
     ),
     ToolGroup(
+        "stocks",
+        "The user's stock portfolio on the Philippine Stock Exchange, or stocks worth buying.",
+        ("get_portfolio", "get_stock_ideas"),
+        (
+            r"\bstocks?\b",
+            r"\bshares\b",
+            r"\bportfolio\b",
+            r"\bholdings?\b",
+            r"\bpsei?\b",
+            r"\binvest",
+            r"\bstock market\b",
+            r"\bpiso ?tiyempo\b",
+            r"\b(my|the) positions?\b",
+        ),
+    ),
+    ToolGroup(
         "documents",
         "The user's own notes and documents.",
         ("search_documents",),

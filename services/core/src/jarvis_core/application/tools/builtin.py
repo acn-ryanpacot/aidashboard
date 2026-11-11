@@ -1,4 +1,4 @@
-"""Built-in tools: time, tasks, reminders, memory, weather, knowledge, web, documents.
+"""Built-in tools: time, tasks, reminders, memory, weather, knowledge, web, documents, stocks.
 
 Each factory closes over the ports it needs and returns :class:`Tool` objects.
 Results are short, factual strings — the model turns them into speech.
@@ -13,6 +13,12 @@ from typing import Any
 from jarvis_core.application.briefing import BriefingService
 from jarvis_core.application.information import NewsService, ScheduleService
 from jarvis_core.application.memory import MemoryService
+from jarvis_core.application.portfolio import (
+    PortfolioOverview,
+    PortfolioService,
+    describe_ideas,
+    describe_portfolio,
+)
 from jarvis_core.application.tools.registry import (
     Tool,
     ToolError,
@@ -21,6 +27,7 @@ from jarvis_core.application.tools.registry import (
     text_arg,
 )
 from jarvis_core.application.tools.timeparse import resolve_due_time, spoken_time
+from jarvis_core.domain.errors import DataSourceUnavailableError
 from jarvis_core.domain.models import ToolSpec
 from jarvis_core.domain.ports import (
     DocumentSearch,
@@ -480,6 +487,47 @@ def schedule_tools(schedule: ScheduleService, clock: Clock = local_now) -> list[
             "Checking your calendar",
             get_schedule,
         )
+    ]
+
+
+def portfolio_tools(portfolio: PortfolioService) -> list[Tool]:
+    """``get_portfolio`` and ``get_stock_ideas`` (PSE, from PisoTiyempo)."""
+
+    async def overview() -> PortfolioOverview:
+        try:
+            return await portfolio.overview()
+        except DataSourceUnavailableError as exc:
+            raise ToolError(str(exc)) from exc
+
+    async def get_portfolio(_: Mapping[str, Any]) -> str:
+        current = await overview()
+        text = describe_portfolio(current)
+        if not current.holdings:
+            text += " " + describe_ideas(current)
+        return text
+
+    async def get_stock_ideas(_: Mapping[str, Any]) -> str:
+        return describe_ideas(await overview())
+
+    return [
+        Tool(
+            ToolSpec(
+                "get_portfolio",
+                "Get how the user's Philippine stock portfolio (PisoTiyempo) did on the latest "
+                "trading day: value, day change and the biggest movers.",
+            ),
+            "Checking your portfolio",
+            get_portfolio,
+        ),
+        Tool(
+            ToolSpec(
+                "get_stock_ideas",
+                "Get up to three PSE stocks that pass a trend-and-value screen, with reasons. "
+                "Use when the user asks what stocks to buy or look at.",
+            ),
+            "Screening PSE stocks",
+            get_stock_ideas,
+        ),
     ]
 
 

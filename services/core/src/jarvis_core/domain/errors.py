@@ -15,3 +15,7 @@ class LanguageModelError(JarvisError):
 
 class SpeechError(JarvisError):
     """Speech recognition or synthesis failed."""
+
+
+class DataSourceUnavailableError(JarvisError):
+    """An external data source (e.g. a companion app) can't be reached right now."""

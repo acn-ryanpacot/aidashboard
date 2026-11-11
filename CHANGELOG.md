@@ -5,6 +5,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **PisoTiyempo Portfolio widget**, the first companion-app widget ([guide](docs/guides/pisotiyempo.md), [ADR-0015](docs/adr/0015-companion-app-feeds.md)):
+  - Your PSE holdings for today or the last session, with day change, value, P/L and the biggest movers.
+  - When you hold nothing, three **trend-and-value ideas** with their reasons, labelled as ideas to research.
+  - Reads PisoTiyempo's local feed, falling back to its export files; core route `/api/apps/pisotiyempo`.
+- Voice tools `get_portfolio` and `get_stock_ideas` (new `stocks` routing group), and a portfolio line in the morning briefing.
+- Settings → **Companion apps** → PisoTiyempo feed address (live). New variables `JARVIS_PORTFOLIO_ENABLED`, `JARVIS_PORTFOLIO_FEED_URL` and `JARVIS_PORTFOLIO_EXPORT_DIR`.
+- `jarvis-doctor` checks PisoTiyempo, and detects PisoTiyempo's feed occupying port 8765.
+- Settings drawer: **Ctrl+S**, or Enter in a text field, saves.
+
+### Fixed
+
+- The Settings drawer no longer silently discards unsaved changes when closed. It asks whether to save or discard.
+- Desktop shell: `app.path()` failed to compile (missing `tauri::Manager` import in `core_service`).
+- Docs: install pnpm with `npm install -g` (no admin, works on Node 25+); Smart App Control blocking uv's Python on Windows 11.
+
 ## [0.3.0] - 2026-11-10
 
 Phase 4 (dashboard) plus the carried-forward items.

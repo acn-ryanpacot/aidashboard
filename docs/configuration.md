@@ -109,6 +109,14 @@ Settings are read from environment variables prefixed with `JARVIS_`, or from `s
 | `JARVIS_BRIEFING_TIME` | (empty) | `HH:MM` for a daily spoken briefing |
 | `JARVIS_SYSTEM_MONITOR_ENABLED` | `true` | CPU/RAM/GPU widget (`psutil`, `nvidia-smi`) |
 
+### Companion apps
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `JARVIS_PORTFOLIO_ENABLED` | `true` | PisoTiyempo Portfolio widget, stock tools and briefing line ([guide](guides/pisotiyempo.md)) |
+| `JARVIS_PORTFOLIO_FEED_URL` | `http://127.0.0.1:8766` | **Live.** PisoTiyempo's desktop feed; empty = export files only |
+| `JARVIS_PORTFOLIO_EXPORT_DIR` | (PisoTiyempo's default) | `%APPDATA%\PisoTiyempo\export` on Windows |
+
 Also live: user name, persona styles, TTS voice and speed, wake threshold, end-of-speech, listen timeout, follow-up, barge-in mode and minimum speech, voice-ID threshold, LLM model and home location.
 
 ### Storage

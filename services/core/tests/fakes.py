@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import TypeVar
 
 from jarvis_core.application.vectors import keywords
-from jarvis_core.domain.errors import LanguageModelError
+from jarvis_core.domain.errors import DataSourceUnavailableError, LanguageModelError
 from jarvis_core.domain.events import VoiceEvent
 from jarvis_core.domain.models import (
     AudioClip,
@@ -27,6 +27,7 @@ from jarvis_core.domain.records import (
     GpuStatus,
     Headline,
     KnowledgeArticle,
+    PortfolioSnapshot,
     SearchResult,
     SystemStatus,
     WeatherReport,
@@ -259,6 +260,24 @@ class FakeSystem:
         return SystemStatus(
             12.5, 7.8, 32.0, (GpuStatus("RTX Test", 40.0, 2048.0, 12288.0, 55.0),), 3600
         )
+
+
+class FakePortfolio:
+    """A portfolio source returning a fixed snapshot (or failing like an offline app)."""
+
+    def __init__(self, snapshot: PortfolioSnapshot | None) -> None:
+        self.snapshot_value = snapshot
+        self.calls = 0
+        self.feed_url = ""
+
+    def set_feed_url(self, url: str) -> None:
+        self.feed_url = url
+
+    async def snapshot(self) -> PortfolioSnapshot:
+        self.calls += 1
+        if self.snapshot_value is None:
+            raise DataSourceUnavailableError("PisoTiyempo isn't reachable.")
+        return self.snapshot_value
 
 
 class MemoryPreferences:

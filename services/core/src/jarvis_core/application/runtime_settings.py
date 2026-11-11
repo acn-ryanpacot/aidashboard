@@ -54,6 +54,16 @@ class RuntimeSettings(BaseModel):
     briefing_time: str = Field(description="HH:MM local time, or empty to disable.")
     news_feeds: list[str] = Field(max_length=20)
     calendar_urls: list[str] = Field(max_length=10)
+    # Companion apps
+    portfolio_feed_url: str = Field(default="", max_length=200)
+
+    @field_validator("portfolio_feed_url")
+    @classmethod
+    def _check_feed_url(cls, value: str) -> str:
+        value = value.strip().rstrip("/")
+        if value and not value.startswith(("http://", "https://")):
+            raise ValueError("use an http:// address, or leave empty to read export files only")
+        return value
 
     @field_validator("briefing_time")
     @classmethod

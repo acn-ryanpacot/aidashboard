@@ -160,6 +160,18 @@ class Settings(BaseSettings):
     briefing_time: str = Field(default="", description="Daily spoken briefing, HH:MM (empty=off).")
     system_monitor_enabled: bool = True
 
+    # --- Companion apps -------------------------------------------------------
+    portfolio_enabled: bool = Field(
+        default=True, description="Read the PisoTiyempo stock portfolio (PSE)."
+    )
+    portfolio_feed_url: str = Field(
+        default="http://127.0.0.1:8766",
+        description="PisoTiyempo desktop feed (set feedPort=8766 there; empty = files only).",
+    )
+    portfolio_export_dir: str = Field(
+        default="", description="PisoTiyempo export folder (empty = its default location)."
+    )
+
     # --- Storage --------------------------------------------------------------
     data_dir: Path = Field(
         default_factory=lambda: Path.home() / ".jarvis-os",

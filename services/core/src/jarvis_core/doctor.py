@@ -19,6 +19,7 @@ import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
 
 import httpx
 
@@ -214,10 +215,18 @@ def check_port(settings: Settings) -> Check:
         in_use = sock.connect_ex((settings.host, settings.port)) == 0
     if not in_use:
         return Check("Port", Status.OK, f"{settings.host}:{settings.port} free")
+    base = f"http://{settings.host}:{settings.port}"
     try:
-        health = httpx.get(f"http://{settings.host}:{settings.port}/api/health", timeout=2).json()
+        health = httpx.get(f"{base}/api/health", timeout=2).json()
         return Check("Port", Status.OK, f"Jarvis {health.get('version')} already running")
     except (httpx.HTTPError, ValueError):
+        if _is_pisotiyempo_feed(base):
+            return Check(
+                "Port",
+                Status.FAIL,
+                f"{settings.port} used by PisoTiyempo's dashboard feed",
+                r"Add feedPort=8766 to %APPDATA%\PisoTiyempo\config.properties, then restart it.",
+            )
         return Check(
             "Port",
             Status.FAIL,
@@ -226,9 +235,42 @@ def check_port(settings: Settings) -> Check:
         )
 
 
+def _is_pisotiyempo_feed(base_url: str) -> bool:
+    """Whether ``base_url`` serves PisoTiyempo's feed (its index lists ``/api/summary``)."""
+    try:
+        index = httpx.get(f"{base_url}/api", timeout=2).json()
+    except (httpx.HTTPError, ValueError):
+        return False
+    return isinstance(index, dict) and "/api/summary" in index.get("endpoints", [])
+
+
+def check_pisotiyempo(settings: Settings) -> Check:
+    """Whether the PisoTiyempo portfolio can be read (live feed or export files)."""
+    from jarvis_core.adapters.portfolio.pisotiyempo import default_export_dir
+
+    url = settings.portfolio_feed_url.rstrip("/")
+    if url and _is_pisotiyempo_feed(url):
+        return Check("PisoTiyempo", Status.OK, f"live feed at {url}")
+    folder = (
+        Path(settings.portfolio_export_dir).expanduser()
+        if settings.portfolio_export_dir
+        else default_export_dir()
+    )
+    if (folder / "summary.json").is_file():
+        return Check("PisoTiyempo", Status.OK, f"export files in {folder} (app closed)")
+    return Check(
+        "PisoTiyempo",
+        Status.WARN,
+        "not found (the Portfolio widget will say so)",
+        "Optional. See docs/guides/pisotiyempo.md, or set JARVIS_PORTFOLIO_ENABLED=false.",
+    )
+
+
 def run_checks(settings: Settings) -> list[Check]:
     """Run every check (never raises)."""
     checks: list[Check] = [check_python(), check_data_dir(settings), check_port(settings)]
+    if settings.portfolio_enabled:
+        checks.append(check_pisotiyempo(settings))
     checks += check_ollama(settings)
     voice: list[tuple[str, str, str, bool]] = [
         ("faster_whisper", "faster-whisper (STT)", "voice", settings.stt_engine != "none"),

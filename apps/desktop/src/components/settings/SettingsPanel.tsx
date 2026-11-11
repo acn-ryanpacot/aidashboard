@@ -520,6 +520,23 @@ export function SettingsPanel() {
             </p>
           </Section>
 
+          <Section title="Companion apps">
+            <Field label="PisoTiyempo feed" hint="Portfolio widget">
+              <input
+                className={cn(inputClass, 'font-mono text-[11.5px]')}
+                value={draft.portfolio_feed_url}
+                placeholder="http://127.0.0.1:8766"
+                onChange={(e) => set('portfolio_feed_url', e.target.value)}
+              />
+            </Field>
+            <p className="text-[11.5px] leading-relaxed text-white/35">
+              PisoTiyempo’s desktop app serves this on your PC. Its default port (8765) clashes with
+              Jarvis, so add <code className="font-mono">feedPort=8766</code> to{' '}
+              <code className="font-mono">%APPDATA%\PisoTiyempo\config.properties</code>. Leave the
+              address empty to read its export files only.
+            </p>
+          </Section>
+
           <Section title="Appearance (this device)">
             <div className="grid grid-cols-3 gap-2">
               {THEMES.map((theme) => (

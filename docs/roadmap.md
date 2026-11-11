@@ -54,7 +54,8 @@ Also shipped in v0.3.0 from the carried-forward list: echo-aware `voice` barge-i
 - Secure remote access to the core service via Tailscale
 - Token auth for devices; OpenAPI-generated clients
 - Replace placeholders with real Tasks, Schedule and News widgets fed by your apps
-- Push notifications from apps to the dashboard
+- ✅ First companion app: **PisoTiyempo** Portfolio widget, voice tools and briefing line ([ADR-0015](adr/0015-companion-app-feeds.md))
+- Push notifications from apps to the dashboard (e.g. PisoTiyempo price alerts)
 
 ## Feature ideas backlog
 

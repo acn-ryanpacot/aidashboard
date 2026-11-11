@@ -9,6 +9,7 @@ from datetime import datetime
 import structlog
 
 from jarvis_core.application.information import NewsService, ScheduleService, WeatherService
+from jarvis_core.application.portfolio import PortfolioService, describe_portfolio
 from jarvis_core.domain.ports import Notifier, PreferenceStore, ReminderRepository, TaskRepository
 
 log = structlog.get_logger(__name__)
@@ -34,6 +35,7 @@ class BriefingService:
         weather: Weather (uses the default location).
         schedule: Calendar events.
         news: Headlines.
+        portfolio: Stock portfolio (only mentioned when you hold stocks).
         clock: Current local time.
     """
 
@@ -45,6 +47,7 @@ class BriefingService:
         weather: WeatherService | None = None,
         schedule: ScheduleService | None = None,
         news: NewsService | None = None,
+        portfolio: PortfolioService | None = None,
         clock: Clock = _local_now,
     ) -> None:
         self._tasks = tasks
@@ -52,6 +55,7 @@ class BriefingService:
         self._weather = weather
         self._schedule = schedule
         self._news = news
+        self._portfolio = portfolio
         self._clock = clock
 
     async def facts(self) -> str:
@@ -62,6 +66,7 @@ class BriefingService:
             self._safe(self._schedule_line),
             self._safe(self._tasks_line),
             self._safe(self._reminders_line),
+            self._safe(self._portfolio_line),
             self._safe(self._news_line),
         )
         lines = [f"It is {now:%A %d %B}, {_clock_label(now)}."]
@@ -110,6 +115,14 @@ class BriefingService:
             + "."
         )
 
+    async def _portfolio_line(self) -> str:
+        if self._portfolio is None:
+            return ""
+        overview = await self._portfolio.overview()
+        if not overview.holdings:
+            return ""
+        return describe_portfolio(overview)
+
     async def _news_line(self) -> str:
         if self._news is None:
             return ""
@@ -130,7 +143,8 @@ class BriefingService:
 BRIEFING_INSTRUCTION = (
     "Give me my briefing now. Using only these facts, speak a warm, natural briefing of at most "
     "seven sentences: greet me for the time of day, then weather, schedule, tasks and reminders, "
-    "and finish with the headlines in one sentence. Skip anything missing.\n\nFacts:\n"
+    "my stock portfolio in one sentence, and finish with the headlines in one sentence. "
+    "Skip anything missing.\n\nFacts:\n"
 )
 
 

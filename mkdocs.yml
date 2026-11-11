@@ -57,6 +57,7 @@ nav:
       - Voice protocol & REST: architecture/voice-protocol.md
   - Guides:
       - Using the dashboard: guides/dashboard.md
+      - PisoTiyempo portfolio: guides/pisotiyempo.md
       - Custom wake word: guides/custom-wake-word.md
       - Voice ID: guides/voice-id.md
       - Knowledge sources: guides/web-search.md
@@ -83,3 +84,4 @@ nav:
       - adr/0012-runtime-settings.md
       - adr/0013-echo-aware-barge-in.md
       - adr/0014-desktop-launches-core.md
+      - adr/0015-companion-app-feeds.md

@@ -29,6 +29,7 @@ from jarvis_core.domain.records import (
     Headline,
     KnowledgeArticle,
     MemoryRecord,
+    PortfolioSnapshot,
     Reminder,
     SearchResult,
     StoredMemory,
@@ -273,6 +274,18 @@ class SystemMonitor(Protocol):
         ...
 
 
+class PortfolioSource(Protocol):
+    """A stock portfolio kept in another app (e.g. PisoTiyempo)."""
+
+    async def snapshot(self) -> PortfolioSnapshot:
+        """Holdings, totals and daily analyses.
+
+        Raises:
+            DataSourceUnavailableError: If the app can't be reached and has no exported data.
+        """
+        ...
+
+
 class PreferenceStore(Protocol):
     """Small JSON documents keyed by name (UI layout, runtime settings, …)."""
 
@@ -321,6 +334,15 @@ class SupportsVoiceConfig(Protocol):
 
     def configure(self, *, voice: str, speed: float) -> None:
         """Use ``voice`` at ``speed`` for subsequent synthesis."""
+        ...
+
+
+@runtime_checkable
+class SupportsFeedUrl(Protocol):
+    """Optional capability: a data source whose address can change at runtime."""
+
+    def set_feed_url(self, url: str) -> None:
+        """Read from ``url`` from now on ("" = don't use a live feed)."""
         ...
 
 

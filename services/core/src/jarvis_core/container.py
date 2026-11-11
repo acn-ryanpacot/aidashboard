@@ -35,6 +35,7 @@ from jarvis_core.application.hub import SessionHub
 from jarvis_core.application.information import NewsService, ScheduleService, WeatherService
 from jarvis_core.application.memory import MemoryService
 from jarvis_core.application.persona import Persona, PersonaStyle
+from jarvis_core.application.portfolio import PortfolioService
 from jarvis_core.application.reminders import ReminderScheduler
 from jarvis_core.application.runtime_settings import RuntimeSettings, SettingsService
 from jarvis_core.application.speaker import SpeakerVerification
@@ -51,11 +52,13 @@ from jarvis_core.domain.ports import (
     KnowledgeProvider,
     LanguageModel,
     NewsProvider,
+    PortfolioSource,
     PreferenceStore,
     ReminderRepository,
     SpeakerEncoder,
     SpeechToText,
     SupportsClose,
+    SupportsFeedUrl,
     SupportsModelSwitch,
     SupportsVoiceConfig,
     SupportsWarmUp,
@@ -96,6 +99,7 @@ def runtime_defaults(s: Settings) -> RuntimeSettings:
         briefing_time=s.briefing_time,
         news_feeds=list(s.news_feeds),
         calendar_urls=list(s.calendar_urls),
+        portfolio_feed_url=s.portfolio_feed_url,
     )
 
 
@@ -126,6 +130,7 @@ class Container:
     weather: WeatherService | None = None
     news: NewsService | None = None
     schedule: ScheduleService | None = None
+    portfolio: PortfolioService | None = None
     system: SystemMonitor | None = None
     speaker: SpeakerVerification | None = None
     router: ToolRouter | None = None
@@ -235,6 +240,7 @@ def assemble(
     documents: DocumentSearch | None = None,
     news: NewsProvider | None = None,
     calendar: CalendarProvider | None = None,
+    portfolio: PortfolioSource | None = None,
     system: SystemMonitor | None = None,
     speaker_encoder: SpeakerEncoder | None = None,
     voiceprints: VoiceprintStore | None = None,
@@ -258,6 +264,7 @@ def assemble(
         documents: Local document search.
         news: RSS/Atom reader.
         calendar: ICS reader.
+        portfolio: Stock portfolio from a companion app (PisoTiyempo).
         system: Host monitor.
         speaker_encoder: Voice-ID embedding model.
         voiceprints: Voice-ID persistence.
@@ -297,12 +304,16 @@ def assemble(
     schedule_service = (
         ScheduleService(calendar, lambda: runtime.current.calendar_urls) if calendar else None
     )
+    if isinstance(portfolio, SupportsFeedUrl):
+        portfolio.set_feed_url(runtime.current.portfolio_feed_url)
+    portfolio_service = PortfolioService(portfolio) if portfolio is not None else None
     briefing = BriefingService(
         tasks=tasks,
         reminders=reminders,
         weather=weather_service,
         schedule=schedule_service,
         news=news_service,
+        portfolio=portfolio_service,
     )
 
     tools = ToolRegistry()
@@ -326,6 +337,8 @@ def assemble(
             tools.extend(builtin.news_tools(news_service))
         if schedule_service is not None:
             tools.extend(builtin.schedule_tools(schedule_service))
+        if portfolio_service is not None:
+            tools.extend(builtin.portfolio_tools(portfolio_service))
         tools.extend(builtin.briefing_tools(briefing))
 
     router = (
@@ -374,6 +387,7 @@ def assemble(
             documents,
             news,
             calendar,
+            portfolio,
             stt,
             tts,
             *adapters,
@@ -400,6 +414,7 @@ def assemble(
         weather=weather_service,
         news=news_service,
         schedule=schedule_service,
+        portfolio=portfolio_service,
         system=system,
         speaker=speaker,
         router=router,
@@ -431,6 +446,11 @@ def assemble(
             news_service.invalidate()
         if schedule_service is not None and new.calendar_urls != old.calendar_urls:
             schedule_service.invalidate()
+        if new.portfolio_feed_url != old.portfolio_feed_url:
+            if isinstance(portfolio, SupportsFeedUrl):
+                portfolio.set_feed_url(new.portfolio_feed_url)
+            if portfolio_service is not None:
+                portfolio_service.invalidate()
         config, endpointing = container.session_config()
         for session in hub.sessions():
             session.apply_config(config, endpointing=endpointing, wake_threshold=new.wake_threshold)
@@ -471,6 +491,7 @@ def build_container(settings: Settings) -> Container:
         documents=_build_documents(s, database, embedder),
         news=_build_news(),
         calendar=_build_calendar(),
+        portfolio=_build_portfolio(s),
         system=_build_system(s),
         speaker_encoder=speaker_encoder if stt is not None else None,
         voiceprints=voiceprints,
@@ -615,6 +636,15 @@ def _build_calendar() -> CalendarProvider:
     from jarvis_core.adapters.calendar.ics import IcsCalendarProvider
 
     return IcsCalendarProvider()
+
+
+def _build_portfolio(s: Settings) -> PortfolioSource | None:
+    if not s.portfolio_enabled:
+        return None
+    from jarvis_core.adapters.portfolio.pisotiyempo import PisoTiyempoPortfolio
+
+    export_dir = Path(s.portfolio_export_dir).expanduser() if s.portfolio_export_dir else None
+    return PisoTiyempoPortfolio(s.portfolio_feed_url, export_dir)
 
 
 def _build_system(s: Settings) -> SystemMonitor | None:

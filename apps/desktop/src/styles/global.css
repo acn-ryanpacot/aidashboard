@@ -25,6 +25,8 @@
   /* Secondary accents */
   --color-gold-400: #ffc45c;
   --color-signal-red: #ff5c7a;
+  /* Gains (losses use signal-red), e.g. the Portfolio widget */
+  --color-signal-green: #5ef2a6;
 }
 
 /*

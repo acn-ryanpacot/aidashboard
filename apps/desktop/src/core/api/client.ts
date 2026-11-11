@@ -49,6 +49,8 @@ export interface RuntimeSettings {
   readonly briefing_time: string;
   readonly news_feeds: readonly string[];
   readonly calendar_urls: readonly string[];
+  /** PisoTiyempo desktop feed address ("" = read its export files only). */
+  readonly portfolio_feed_url: string;
 }
 
 export interface SettingsResponse {
@@ -114,6 +116,59 @@ export interface SystemSnapshot {
   readonly uptime_s: number;
 }
 
+/** Portfolio totals in pesos; percentages are in percent (1.5 = +1.5 %). */
+export interface PortfolioTotals {
+  readonly market_value: number;
+  readonly cost_basis: number;
+  readonly day_change: number;
+  readonly day_change_pct: number | null;
+  readonly unrealized_pnl: number;
+  readonly unrealized_pct: number;
+}
+
+/** One position and its move on the latest trading day. */
+export interface PortfolioHolding {
+  readonly symbol: string;
+  readonly sector: string;
+  readonly shares: number;
+  readonly last_price: number | null;
+  readonly change_pct: number | null;
+  readonly day_change: number;
+  readonly market_value: number;
+  readonly unrealized_pnl: number;
+  readonly unrealized_pct: number;
+}
+
+/** A PSE stock that passed the trend-and-value screen. */
+export interface StockIdea {
+  readonly symbol: string;
+  readonly name: string;
+  readonly sector: string;
+  readonly close: number;
+  readonly change_pct: number | null;
+  readonly score: number;
+  readonly rsi14: number | null;
+  readonly return_3m_pct: number | null;
+  readonly reasons: readonly string[];
+}
+
+/** `GET /api/apps/pisotiyempo`: the Portfolio widget's data. */
+export interface PisoTiyempoResponse {
+  readonly status: 'ok' | 'unavailable' | 'disabled';
+  readonly message: string;
+  readonly source: string;
+  /** Trading date of the prices (YYYY-MM-DD). */
+  readonly session_date: string | null;
+  /** Whether that date is today in Philippine time. */
+  readonly is_today: boolean;
+  readonly totals: PortfolioTotals | null;
+  readonly holdings: readonly PortfolioHolding[];
+  readonly ideas: readonly StockIdea[];
+  /** The screen's rules in one sentence. */
+  readonly screen: string;
+  readonly disclaimer: string;
+}
+
 /** Raised for non-2xx responses; `message` carries the server's explanation. */
 export class ApiError extends Error {
   override readonly name = 'ApiError';
@@ -175,6 +230,7 @@ export const coreApi = {
   getNews: (limit = 8) => request<Headline[]>(`/api/news?limit=${limit}`),
   getCalendar: (days = 2) => request<CalendarResponse>(`/api/calendar?days=${days}`),
   getSystem: () => request<SystemSnapshot>('/api/system'),
+  getPisoTiyempo: () => request<PisoTiyempoResponse>('/api/apps/pisotiyempo'),
 };
 
 /**

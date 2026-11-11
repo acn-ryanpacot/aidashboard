@@ -229,6 +229,9 @@ JARVIS_SPEAKER_VERIFICATION=true
 
 Kokoro and voice ID use the GPU automatically when PyTorch can see it. You can change most other settings later from the dashboard's **Settings** screen, without restarting. See the [Configuration reference](../configuration.md).
 
+!!! important "Using PisoTiyempo on this PC?"
+    Its desktop app also uses port **8765**. Before starting Jarvis, add `feedPort=8766` to `%APPDATA%\PisoTiyempo\config.properties`. The [PisoTiyempo guide](pisotiyempo.md) has the details, and covers adding the Portfolio widget.
+
 ---
 
 ## 7. (Optional) The exact phrase "Hello Jarvis"
@@ -359,6 +362,7 @@ faster-whisper uses CTranslate2, which needs NVIDIA's cuBLAS and cuDNN 9 librari
 | Cuts you off mid-sentence | **Settings → Listening → Pause that ends your turn** to about 1200 ms |
 | Jarvis interrupts itself (voice barge-in) | Use **Interrupting Jarvis → Say the wake word again**, or a headset; raise *Talk-over needed* |
 | Voice ID ignores you | **Settings → Voice ID strictness** lower, or **Re-train my voice** in your usual spot |
+| "Core offline", or `jarvis-doctor` says *8765 used by PisoTiyempo* | PisoTiyempo's feed is on Jarvis's port: set `feedPort=8766` ([guide](pisotiyempo.md)) |
 | `pnpm dev:app` fails with a linker error | The Visual Studio Build Tools (C++ workload) are missing; rerun the last winget line in 2.2 |
 | Port 8765 already in use | Another core is running (fine), or set `JARVIS_PORT` and `VITE_JARVIS_CORE_URL` to match |
 | Calendar shows nothing | Paste the **secret ICS address** (not the public link) in **Settings → Briefing & feeds** |
