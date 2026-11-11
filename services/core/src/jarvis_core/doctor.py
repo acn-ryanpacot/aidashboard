@@ -266,11 +266,32 @@ def check_pisotiyempo(settings: Settings) -> Check:
     )
 
 
+def check_pisotiyempo_alerts(settings: Settings) -> Check:
+    """Whether PisoTiyempo's database (with your alert rules) can be read."""
+    from jarvis_core.adapters.portfolio.pisotiyempo import default_database_path
+
+    path = (
+        Path(settings.portfolio_database).expanduser()
+        if settings.portfolio_database
+        else default_database_path()
+    )
+    if path.is_file():
+        return Check("PisoTiyempo alerts", Status.OK, f"reading {path}")
+    return Check(
+        "PisoTiyempo alerts",
+        Status.WARN,
+        f"no database at {path}",
+        "Install the PisoTiyempo desktop app, or set JARVIS_PORTFOLIO_ALERTS_ENABLED=false.",
+    )
+
+
 def run_checks(settings: Settings) -> list[Check]:
     """Run every check (never raises)."""
     checks: list[Check] = [check_python(), check_data_dir(settings), check_port(settings)]
     if settings.portfolio_enabled:
         checks.append(check_pisotiyempo(settings))
+        if settings.portfolio_alerts_enabled:
+            checks.append(check_pisotiyempo_alerts(settings))
     checks += check_ollama(settings)
     voice: list[tuple[str, str, str, bool]] = [
         ("faster_whisper", "faster-whisper (STT)", "voice", settings.stt_engine != "none"),

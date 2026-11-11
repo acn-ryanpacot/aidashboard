@@ -15,6 +15,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Settings → **Companion apps** → PisoTiyempo feed address (live). New variables `JARVIS_PORTFOLIO_ENABLED`, `JARVIS_PORTFOLIO_FEED_URL` and `JARVIS_PORTFOLIO_EXPORT_DIR`.
 - `jarvis-doctor` checks PisoTiyempo, and detects PisoTiyempo's feed occupying port 8765.
 - Settings drawer: **Ctrl+S**, or Enter in a text field, saves.
+- **Timers**:
+  - *"Jarvis, 10 minutes for the rice"*, with tools `set_timer`, `list_timers` and `cancel_timer` (new `timers` routing group).
+  - A **Timers** widget with countdown rings, presets and a free-text box (`12 min tea`).
+  - A distinct three-part chime that rings even in focus mode.
+  - Timers are stored in SQLite (migration 4), with REST at `/api/timers`.
+- **Spoken PisoTiyempo alerts**:
+  - Your price above/below, Buy/Sell signal and pattern alerts are checked with the phone app's own conditions and announced once per trading day.
+  - They wait for an open window instead of being lost, and show as a gold line in the Portfolio widget.
+  - Ask with `get_stock_alerts`.
+  - Alerts are read read-only from PisoTiyempo's database. New variables `JARVIS_PORTFOLIO_ALERTS_ENABLED`, `JARVIS_PORTFOLIO_DATABASE` and `JARVIS_PORTFOLIO_ALERTS_POLL_S`.
 
 ### Fixed
 

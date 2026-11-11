@@ -96,6 +96,7 @@ Settings are read from environment variables prefixed with `JARVIS_`, or from `s
 | `JARVIS_DOCUMENTS_DIR`         | (empty)            | Enables `search_documents` over that folder         |
 | `JARVIS_MCP_SERVERS`           | `[]`               | JSON list, see the MCP guide                       |
 | `JARVIS_REMINDER_POLL_S`       | `5`                | Reminder check interval                            |
+| `JARVIS_TIMER_POLL_S`          | `1`                | Timer check interval (seconds)                     |
 | `JARVIS_PERSONA_FORMALITY`     | `balanced`         | `formal`, `balanced` or `casual`                   |
 | `JARVIS_PERSONA_VERBOSITY`     | `balanced`         | `brief`, `balanced` or `detailed`                  |
 | `JARVIS_PERSONA_HUMOUR`        | `dry`              | `none`, `dry` or `playful`                         |
@@ -116,6 +117,9 @@ Settings are read from environment variables prefixed with `JARVIS_`, or from `s
 | `JARVIS_PORTFOLIO_ENABLED` | `true` | PisoTiyempo Portfolio widget, stock tools and briefing line ([guide](guides/pisotiyempo.md)) |
 | `JARVIS_PORTFOLIO_FEED_URL` | `http://127.0.0.1:8766` | **Live.** PisoTiyempo's desktop feed; empty = export files only |
 | `JARVIS_PORTFOLIO_EXPORT_DIR` | (PisoTiyempo's default) | `%APPDATA%\PisoTiyempo\export` on Windows |
+| `JARVIS_PORTFOLIO_ALERTS_ENABLED` | `true` | Speak PisoTiyempo alerts when they trigger |
+| `JARVIS_PORTFOLIO_DATABASE` | (PisoTiyempo's default) | `%APPDATA%\PisoTiyempo\piso-tiyempo.db`, opened read-only |
+| `JARVIS_PORTFOLIO_ALERTS_POLL_S` | `120` | Seconds between alert checks |
 
 Also live: user name, persona styles, TTS voice and speed, wake threshold, end-of-speech, listen timeout, follow-up, barge-in mode and minimum speech, voice-ID threshold, LLM model and home location.
 

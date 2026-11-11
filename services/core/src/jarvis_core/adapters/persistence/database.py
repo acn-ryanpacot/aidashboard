@@ -67,6 +67,18 @@ MIGRATIONS: tuple[str, ...] = (
         updated_at TEXT NOT NULL
     );
     """,
+    # 4 — countdown timers
+    """
+    CREATE TABLE timers (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        label      TEXT    NOT NULL,
+        duration_s INTEGER NOT NULL,
+        ends_at    TEXT    NOT NULL,
+        created_at TEXT    NOT NULL,
+        done       INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX idx_timers_running ON timers (done, ends_at);
+    """,
 )
 
 

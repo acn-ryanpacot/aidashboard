@@ -7,8 +7,13 @@ PisoTiyempo (a PSE investing app) publishes the user's data two ways:
 * ``summary.json`` plus CSV files in its export folder, rewritten after every
   sync, so the data is still available when the app is closed.
 
-This adapter tries the live feed first and falls back to the export files.
-It only ever reads the real-money account (never practice trades).
+:class:`PisoTiyempoPortfolio` tries the live feed first and falls back to the
+export files. It only ever reads the real-money account (never practice trades).
+
+:class:`PisoTiyempoAlerts` reads the user's alert rules from the app's SQLite
+database, which its README offers for exactly this ("open it read-only"). The
+feed doesn't expose alerts. The file is opened in read-only mode, so Jarvis can
+never change it.
 
 The feed's default port (8765) is the same as the Jarvis core's, so the guide
 asks the user to move PisoTiyempo's feed to 8766 (``feedPort=8766`` in its
@@ -18,9 +23,11 @@ asks the user to move PisoTiyempo's feed to 8766 (``feedPort=8766`` in its
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import csv
 import json
 import os
+import sqlite3
 from collections.abc import Mapping, Sequence
 from datetime import date
 from pathlib import Path
@@ -31,15 +38,25 @@ import structlog
 
 from jarvis_core.domain.errors import DataSourceUnavailableError
 from jarvis_core.domain.records import (
+    AlertBook,
     PortfolioSnapshot,
     PortfolioSummary,
+    StockAlertRule,
     StockAnalysis,
     StockHolding,
+    StockQuote,
 )
 
 log = structlog.get_logger(__name__)
 
 DEFAULT_FEED_URL = "http://127.0.0.1:8766"
+
+
+def _app_home() -> Path:
+    app_data = os.environ.get("APPDATA")
+    if os.name == "nt" and app_data:
+        return Path(app_data) / "PisoTiyempo"
+    return Path.home() / ".pisotiyempo"
 
 
 def default_export_dir() -> Path:
@@ -48,10 +65,12 @@ def default_export_dir() -> Path:
     ``%APPDATA%\PisoTiyempo\export`` on Windows, ``~/.pisotiyempo/export``
     elsewhere (the same rule as the desktop app's ``DesktopPaths``).
     """
-    app_data = os.environ.get("APPDATA")
-    if os.name == "nt" and app_data:
-        return Path(app_data) / "PisoTiyempo" / "export"
-    return Path.home() / ".pisotiyempo" / "export"
+    return _app_home() / "export"
+
+
+def default_database_path() -> Path:
+    r"""PisoTiyempo's desktop database: ``%APPDATA%\PisoTiyempo\piso-tiyempo.db``."""
+    return _app_home() / "piso-tiyempo.db"
 
 
 # ------------------------------------------------------------------ parsing
@@ -236,6 +255,81 @@ class PisoTiyempoPortfolio:
             log.warning("pisotiyempo_export_unreadable", folder=str(folder), error=str(exc))
             return None
         return build_snapshot(summary, holdings, analyses, "files")
+
+
+class PisoTiyempoAlerts:
+    """Implements :class:`~jarvis_core.domain.ports.StockAlertSource`.
+
+    Reads the ``alerts``, ``stocks`` and ``analyses`` tables of PisoTiyempo's
+    desktop database (synced from the phone), always read-only.
+
+    Args:
+        database: Path to ``piso-tiyempo.db`` (``None`` = its default location).
+    """
+
+    def __init__(self, database: Path | None = None) -> None:
+        self._database = database or default_database_path()
+
+    async def alert_book(self) -> AlertBook:
+        """Active alerts and the latest quotes for their symbols."""
+        return await asyncio.to_thread(self._read)
+
+    def _read(self) -> AlertBook:
+        if not self._database.is_file():
+            raise DataSourceUnavailableError(f"PisoTiyempo's database isn't at {self._database}")
+        uri = f"{self._database.resolve().as_uri()}?mode=ro"
+        try:
+            with contextlib.closing(sqlite3.connect(uri, uri=True, timeout=2)) as conn:
+                conn.row_factory = sqlite3.Row
+                return read_alert_book(conn)
+        except sqlite3.Error as exc:
+            raise DataSourceUnavailableError(f"couldn't read PisoTiyempo's alerts: {exc}") from exc
+
+
+def read_alert_book(conn: sqlite3.Connection) -> AlertBook:
+    """Read alert rules and quotes from a PisoTiyempo database connection.
+
+    A database without an ``alerts`` table (older app versions) has no alerts.
+    """
+    try:
+        rows = conn.execute(
+            "SELECT uid, symbol, kind, threshold FROM alerts WHERE active = 1 ORDER BY createdAt"
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return AlertBook((), {})
+    rules = tuple(
+        StockAlertRule(
+            uid=str(r["uid"]),
+            symbol=str(r["symbol"]).upper(),
+            kind=str(r["kind"]),
+            threshold=_float(r["threshold"]),
+        )
+        for r in rows
+    )
+    symbols = sorted({rule.symbol for rule in rules})
+    if not symbols:
+        return AlertBook(rules, {})
+    marks = ",".join("?" * len(symbols))
+    quotes: dict[str, StockQuote] = {}
+    query = (
+        # Only "?" placeholders are interpolated; the symbols are bound parameters.
+        "SELECT s.symbol, s.close, s.date, a.score, a.asOf, a.patternNames FROM stocks s "
+        f"LEFT JOIN analyses a ON a.symbol = s.symbol WHERE s.symbol IN ({marks})"
+    )
+    for r in conn.execute(query, symbols):
+        day = _date(r["date"])
+        if day is None:
+            continue
+        patterns = tuple(p.strip() for p in str(r["patternNames"] or "").splitlines() if p.strip())
+        quotes[str(r["symbol"]).upper()] = StockQuote(
+            symbol=str(r["symbol"]).upper(),
+            close=_num(r["close"]),
+            day=day,
+            score=None if r["score"] is None else int(r["score"]),
+            analysis_date=_date(r["asOf"]),
+            patterns=patterns,
+        )
+    return AlertBook(rules, quotes)
 
 
 def _read_csv(path: Path) -> list[Mapping[str, Any]]:

@@ -58,6 +58,15 @@ class IdeaOut(BaseModel):
     reasons: list[str]
 
 
+class AlertOut(BaseModel):
+    """One of your PisoTiyempo alerts that holds at the latest close."""
+
+    symbol: str
+    kind: str
+    message: str
+    date: date
+
+
 class PisoTiyempoOut(BaseModel):
     """What the Portfolio widget shows.
 
@@ -73,6 +82,7 @@ class PisoTiyempoOut(BaseModel):
     totals: PortfolioTotalsOut | None = None
     holdings: list[HoldingOut] = []
     ideas: list[IdeaOut] = []
+    alerts: list[AlertOut] = []
     screen: str = ""
     disclaimer: str = DISCLAIMER
 
@@ -88,6 +98,7 @@ async def get_pisotiyempo(request: Request) -> PisoTiyempoOut:
         overview = await service.overview()
     except DataSourceUnavailableError as exc:
         return PisoTiyempoOut(status="unavailable", message=str(exc))
+    fired = await container.stock_alerts.triggered() if container.stock_alerts else []
     s = overview.summary
     return PisoTiyempoOut(
         status="ok",
@@ -129,6 +140,10 @@ async def get_pisotiyempo(request: Request) -> PisoTiyempoOut:
                 reasons=list(i.reasons),
             )
             for i in overview.ideas
+        ],
+        alerts=[
+            AlertOut(symbol=a.rule.symbol, kind=a.rule.kind, message=a.message, date=a.quote.day)
+            for a in fired
         ],
         screen=overview.rules.describe(),
     )

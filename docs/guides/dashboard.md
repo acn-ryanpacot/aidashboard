@@ -19,6 +19,7 @@ The layout is saved to the core service (`/api/ui-preferences/layout`), with a l
 | Schedule | Today's and tomorrow's events | A calendar ICS address (Settings → Briefing & feeds) |
 | Conversation | The current transcript | — |
 | Tasks | Open tasks and upcoming reminders | — |
+| Timers | Countdown rings; start one by typing "12 min tea" or with a preset | — |
 | Briefing | Latest headlines | News feeds (defaults: BBC World, NPR) |
 | Portfolio | Your PSE stocks for the latest session, or three trend-and-value ideas | The PisoTiyempo app ([guide](pisotiyempo.md)) |
 | Memory | What Jarvis remembers; hover a fact to forget it | — |
@@ -39,7 +40,15 @@ Choose one in **Settings → Appearance** or from the palette. Each theme recolo
 
 ## Focus mode
 
-The **focus icon** hides every widget and leaves only the core, captions and command bar. Reminder chimes are muted, but reminders still appear in the transcript and are still spoken.
+The **focus icon** hides every widget and leaves only the core, captions and command bar. Reminder and alert chimes are muted, but they still appear in the transcript and are still spoken. Timers always ring.
+
+## Timers
+
+Say *"Jarvis, 10 minutes for the rice"*, *"set a timer for an hour and a half"* or *"how long is left on the tea?"*. In the **Timers** widget, type something like `12 min tea` (the words other than the duration become the label), or click a preset.
+
+When a timer reaches zero, Jarvis plays a three-part chime and says *"Ryan, the rice timer is done."* Timers are stored by the core service. If it was restarted, a timer that ran out in the meantime rings as soon as it's back. Cancel one by saying *"cancel the rice timer"* (or *"cancel all timers"*), or with the × in the widget.
+
+Durations Jarvis understands include `90 seconds`, `10m`, `1h30m`, `1.5 hours`, `half an hour`, `forty-five minutes` and a bare number of minutes (`5`). The maximum is 24 hours; for anything longer, use a reminder.
 
 ## Ambient mode
 

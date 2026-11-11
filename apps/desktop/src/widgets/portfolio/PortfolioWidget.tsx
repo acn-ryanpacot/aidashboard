@@ -1,8 +1,10 @@
 import type { WidgetProps } from '@jarvis/widget-sdk';
+import { BellRing } from 'lucide-react';
 
 import {
   type PisoTiyempoResponse,
   type PortfolioHolding,
+  type StockAlert,
   type StockIdea,
   coreApi,
 } from '../../core/api/client';
@@ -157,7 +159,8 @@ function Ideas({ data }: { data: PisoTiyempoResponse }) {
 
 /** PSE portfolio from PisoTiyempo, or three ideas to research when you hold nothing. */
 export function PortfolioWidget({ size }: WidgetProps) {
-  const { data, error } = useCoreData(['settings'], loadPortfolio, REFRESH_MS);
+  // "portfolio" is announced when new PisoTiyempo alerts are spoken.
+  const { data, error } = useCoreData(['settings', 'portfolio'], loadPortfolio, REFRESH_MS);
 
   if (error) return <Notice title="Portfolio unavailable" detail={error} />;
   if (!data) return null;
@@ -177,9 +180,28 @@ export function PortfolioWidget({ size }: WidgetProps) {
       />
     );
   }
-  return data.holdings.length > 0 ? (
-    <Holdings data={data} rows={size.rows} />
-  ) : (
-    <Ideas data={data} />
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-2.5">
+      <Alerts alerts={data.alerts} />
+      {data.holdings.length > 0 ? <Holdings data={data} rows={size.rows} /> : <Ideas data={data} />}
+    </div>
+  );
+}
+
+/** Your PisoTiyempo alerts that triggered at the latest close (also spoken once). */
+function Alerts({ alerts }: { alerts: readonly StockAlert[] }) {
+  if (alerts.length === 0) return null;
+  const [first, ...rest] = alerts;
+  return (
+    <div
+      className="flex items-start gap-2 rounded-lg border border-gold-400/20 bg-gold-400/[0.06] px-2.5 py-1.5"
+      title={alerts.map((a) => a.message).join('\n')}
+    >
+      <BellRing className="mt-px size-3.5 shrink-0 text-gold-400/80" />
+      <p className="min-w-0 flex-1 truncate text-[11.5px] text-white/75">{first?.message}</p>
+      {rest.length > 0 && (
+        <span className="shrink-0 font-mono text-[10px] text-gold-400/80">+{rest.length}</span>
+      )}
+    </div>
   );
 }

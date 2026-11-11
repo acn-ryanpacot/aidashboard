@@ -11,7 +11,7 @@ from typing import Any
 import numpy as np
 
 from jarvis_core.adapters.persistence.database import Database, from_db_time, to_db_time, utc_now
-from jarvis_core.domain.records import MemoryRecord, Reminder, StoredMemory, Task
+from jarvis_core.domain.records import MemoryRecord, Reminder, StoredMemory, Task, Timer
 
 
 def _encode_vector(vector: Sequence[float] | None) -> bytes | None:
@@ -147,6 +147,66 @@ class SqliteReminderRepository:
         """Cancel a reminder."""
         return await self._db.run(
             lambda c: c.execute("DELETE FROM reminders WHERE id = ?", (reminder_id,)).rowcount > 0
+        )
+
+
+# -------------------------------------------------------------------- timers
+
+
+def _timer(row: sqlite3.Row) -> Timer:
+    return Timer(
+        id=row["id"],
+        label=row["label"],
+        duration_s=row["duration_s"],
+        ends_at=_required_time(row["ends_at"]),
+        created_at=_required_time(row["created_at"]),
+        done=bool(row["done"]),
+    )
+
+
+class SqliteTimerRepository:
+    """Implements :class:`~jarvis_core.domain.ports.TimerRepository`.
+
+    Timers live in the database so they survive a restart of the core: one
+    that ran out while it was down rings as soon as it is back.
+    """
+
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    async def add(self, label: str, duration_s: int, ends_at: datetime) -> Timer:
+        """Start a timer."""
+
+        def op(conn: sqlite3.Connection) -> Timer:
+            cursor = conn.execute(
+                "INSERT INTO timers (label, duration_s, ends_at, created_at) "
+                "VALUES (?, ?, ?, ?) RETURNING *",
+                (label.strip(), duration_s, to_db_time(ends_at), to_db_time(utc_now())),
+            )
+            return _timer(cursor.fetchone())
+
+        return await self._db.run(op)
+
+    async def active(self) -> list[Timer]:
+        """Timers still counting down, soonest first."""
+        sql = "SELECT * FROM timers WHERE done = 0 ORDER BY ends_at ASC, id ASC"
+        return await self._db.run(lambda c: [_timer(r) for r in c.execute(sql)])
+
+    async def due(self, now: datetime) -> list[Timer]:
+        """Running timers that have reached zero."""
+        sql = "SELECT * FROM timers WHERE done = 0 AND ends_at <= ? ORDER BY ends_at, id"
+        return await self._db.run(lambda c: [_timer(r) for r in c.execute(sql, (to_db_time(now),))])
+
+    async def mark_done(self, timer_id: int) -> None:
+        """Record that a timer rang."""
+        await self._db.run(
+            lambda c: c.execute("UPDATE timers SET done = 1 WHERE id = ?", (timer_id,))
+        )
+
+    async def delete(self, timer_id: int) -> bool:
+        """Cancel a timer."""
+        return await self._db.run(
+            lambda c: c.execute("DELETE FROM timers WHERE id = ?", (timer_id,)).rowcount > 0
         )
 
 

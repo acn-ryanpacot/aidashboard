@@ -18,6 +18,7 @@ import portfolio from '../widgets/portfolio';
 import schedule from '../widgets/schedule';
 import system from '../widgets/system';
 import tasks from '../widgets/tasks';
+import timers from '../widgets/timers';
 import weather from '../widgets/weather';
 
 export const widgetRegistry = new WidgetRegistry()
@@ -26,6 +27,7 @@ export const widgetRegistry = new WidgetRegistry()
   .register(schedule)
   .register(conversation)
   .register(tasks)
+  .register(timers)
   .register(news)
   .register(portfolio)
   .register(memories)

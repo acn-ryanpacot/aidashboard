@@ -55,8 +55,9 @@ Also shipped in v0.3.0 from the carried-forward list: echo-aware `voice` barge-i
 - Token auth for devices; OpenAPI-generated clients
 - Replace placeholders with real Tasks, Schedule and News widgets fed by your apps
 - ✅ First companion app: **PisoTiyempo** Portfolio widget, voice tools and briefing line ([ADR-0015](adr/0015-companion-app-feeds.md))
-- Push notifications from apps to the dashboard (e.g. PisoTiyempo price alerts)
+- ✅ PisoTiyempo price and signal alerts spoken by Jarvis
+- Push notifications from other apps to the dashboard
 
 ## Feature ideas backlog
 
-Timers and alarms · unit/currency conversion · clipboard summarizer · daily voice journal · habit tracker · Home Assistant control · webcam presence greeting (MediaPipe) · offline mode indicator · multi-language support
+~~Timers~~ (done) · notifications center · unit/currency conversion · clipboard summarizer · daily voice journal · habit tracker · Home Assistant control · webcam presence greeting (MediaPipe) · offline mode indicator · multi-language support

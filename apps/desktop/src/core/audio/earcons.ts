@@ -6,7 +6,7 @@
  */
 
 /** The cues Jarvis can play. */
-export type Earcon = 'wake' | 'listen-end' | 'notify' | 'error';
+export type Earcon = 'wake' | 'listen-end' | 'notify' | 'timer' | 'error';
 
 interface Tone {
   /** Frequency in Hz. */
@@ -34,11 +34,24 @@ export const EARCON_TONES: Readonly<Record<Earcon, readonly Tone[]>> = {
     { freq: 1318.5, at: 0.12, length: 0.14, gain: 0.055 },
     { freq: 1568, at: 0.24, length: 0.24, gain: 0.05 },
   ],
+  // Three soft double-chimes: insistent enough to hear from the kitchen.
+  timer: [0, 0.45, 0.9].flatMap((at) => [
+    { freq: 1318.5, at, length: 0.16, gain: 0.07 },
+    { freq: 1760, at: at + 0.14, length: 0.22, gain: 0.065 },
+  ]),
   error: [
     { freq: 392, at: 0, length: 0.16, gain: 0.06 },
     { freq: 311.1, at: 0.12, length: 0.24, gain: 0.06 },
   ],
 };
+
+/**
+ * The cue for a server notification, and whether it should sound even when
+ * notification chimes are muted (focus mode): a timer you can't hear is useless.
+ */
+export function earconForNotification(kind: string): { earcon: Earcon; always: boolean } {
+  return kind === 'timer' ? { earcon: 'timer', always: true } : { earcon: 'notify', always: false };
+}
 
 /** Plays earcons on a shared AudioContext. */
 export class EarconPlayer {

@@ -25,6 +25,7 @@ from jarvis_core.adapters.persistence.repositories import (
     SqlitePreferenceStore,
     SqliteReminderRepository,
     SqliteTaskRepository,
+    SqliteTimerRepository,
 )
 from jarvis_core.application.brain import Brain
 from jarvis_core.application.briefing import BriefingScheduler, BriefingService
@@ -39,6 +40,8 @@ from jarvis_core.application.portfolio import PortfolioService
 from jarvis_core.application.reminders import ReminderScheduler
 from jarvis_core.application.runtime_settings import RuntimeSettings, SettingsService
 from jarvis_core.application.speaker import SpeakerVerification
+from jarvis_core.application.stock_alerts import StockAlertScheduler, StockAlertService
+from jarvis_core.application.timers import TimerScheduler
 from jarvis_core.application.tools import builtin
 from jarvis_core.application.tools.registry import Tool, ToolRegistry
 from jarvis_core.application.tools.routing import ToolRouter, mcp_group
@@ -57,6 +60,7 @@ from jarvis_core.domain.ports import (
     ReminderRepository,
     SpeakerEncoder,
     SpeechToText,
+    StockAlertSource,
     SupportsClose,
     SupportsFeedUrl,
     SupportsModelSwitch,
@@ -65,6 +69,7 @@ from jarvis_core.domain.ports import (
     SystemMonitor,
     TaskRepository,
     TextToSpeech,
+    TimerRepository,
     VoiceActivityDetector,
     VoiceEventSink,
     VoiceprintStore,
@@ -120,6 +125,7 @@ class Container:
     hub: SessionHub
     tasks: TaskRepository
     reminders: ReminderRepository
+    timers: TimerRepository
     memory: MemoryService | None
     stt: SpeechToText | None
     tts: TextToSpeech | None
@@ -131,6 +137,7 @@ class Container:
     news: NewsService | None = None
     schedule: ScheduleService | None = None
     portfolio: PortfolioService | None = None
+    stock_alerts: StockAlertService | None = None
     system: SystemMonitor | None = None
     speaker: SpeakerVerification | None = None
     router: ToolRouter | None = None
@@ -241,6 +248,7 @@ def assemble(
     news: NewsProvider | None = None,
     calendar: CalendarProvider | None = None,
     portfolio: PortfolioSource | None = None,
+    stock_alerts: StockAlertSource | None = None,
     system: SystemMonitor | None = None,
     speaker_encoder: SpeakerEncoder | None = None,
     voiceprints: VoiceprintStore | None = None,
@@ -265,6 +273,7 @@ def assemble(
         news: RSS/Atom reader.
         calendar: ICS reader.
         portfolio: Stock portfolio from a companion app (PisoTiyempo).
+        stock_alerts: The user's stock alert rules in that app.
         system: Host monitor.
         speaker_encoder: Voice-ID embedding model.
         voiceprints: Voice-ID persistence.
@@ -287,6 +296,7 @@ def assemble(
     persona = make_persona(runtime.current)
     tasks = SqliteTaskRepository(database)
     reminders = SqliteReminderRepository(database)
+    timers = SqliteTimerRepository(database)
     memory = (
         MemoryService(
             SqliteMemoryStore(database),
@@ -307,6 +317,9 @@ def assemble(
     if isinstance(portfolio, SupportsFeedUrl):
         portfolio.set_feed_url(runtime.current.portfolio_feed_url)
     portfolio_service = PortfolioService(portfolio) if portfolio is not None else None
+    alert_service = (
+        StockAlertService(stock_alerts, preferences) if stock_alerts is not None else None
+    )
     briefing = BriefingService(
         tasks=tasks,
         reminders=reminders,
@@ -321,6 +334,7 @@ def assemble(
         tools.extend(builtin.time_tools())
         tools.extend(builtin.task_tools(tasks, hub))
         tools.extend(builtin.reminder_tools(reminders, hub))
+        tools.extend(builtin.timer_tools(timers, hub))
         if memory is not None:
             tools.extend(builtin.memory_tools(memory, hub))
         if weather_service is not None:
@@ -339,6 +353,8 @@ def assemble(
             tools.extend(builtin.schedule_tools(schedule_service))
         if portfolio_service is not None:
             tools.extend(builtin.portfolio_tools(portfolio_service))
+        if alert_service is not None:
+            tools.extend(builtin.stock_alert_tools(alert_service))
         tools.extend(builtin.briefing_tools(briefing))
 
     router = (
@@ -368,6 +384,20 @@ def assemble(
     reminder_scheduler = ReminderScheduler(
         reminders, hub, user_name=persona.user_name, poll_s=s.reminder_poll_s
     )
+    timer_scheduler = TimerScheduler(
+        timers, hub, user_name=persona.user_name, poll_s=s.timer_poll_s
+    )
+    alert_scheduler = (
+        StockAlertScheduler(
+            alert_service,
+            hub,
+            has_listeners=lambda: len(hub) > 0,
+            user_name=persona.user_name,
+            poll_s=s.portfolio_alerts_poll_s,
+        )
+        if alert_service is not None
+        else None
+    )
     briefing_scheduler = BriefingScheduler(
         compose=brain.compose,
         briefing=briefing,
@@ -388,6 +418,7 @@ def assemble(
             news,
             calendar,
             portfolio,
+            stock_alerts,
             stt,
             tts,
             *adapters,
@@ -404,6 +435,7 @@ def assemble(
         hub=hub,
         tasks=tasks,
         reminders=reminders,
+        timers=timers,
         memory=memory,
         stt=stt,
         tts=tts,
@@ -415,11 +447,17 @@ def assemble(
         news=news_service,
         schedule=schedule_service,
         portfolio=portfolio_service,
+        stock_alerts=alert_service,
         system=system,
         speaker=speaker,
         router=router,
         database=database,
-        background=[reminder_scheduler, briefing_scheduler],
+        background=[
+            reminder_scheduler,
+            timer_scheduler,
+            briefing_scheduler,
+            *([alert_scheduler] if alert_scheduler is not None else []),
+        ],
         warmables=present,
         closables=[*present, *tool_sources],
         tool_sources=list(tool_sources),
@@ -433,6 +471,9 @@ def assemble(
             brain.set_persona(updated)
             greeting.set_text(updated.greeting)
             reminder_scheduler.user_name = new.user_name
+            timer_scheduler.user_name = new.user_name
+            if alert_scheduler is not None:
+                alert_scheduler.user_name = new.user_name
         if (new.tts_voice, new.tts_speed) != (old.tts_voice, old.tts_speed) and isinstance(
             tts, SupportsVoiceConfig
         ):
@@ -492,6 +533,7 @@ def build_container(settings: Settings) -> Container:
         news=_build_news(),
         calendar=_build_calendar(),
         portfolio=_build_portfolio(s),
+        stock_alerts=_build_stock_alerts(s),
         system=_build_system(s),
         speaker_encoder=speaker_encoder if stt is not None else None,
         voiceprints=voiceprints,
@@ -645,6 +687,15 @@ def _build_portfolio(s: Settings) -> PortfolioSource | None:
 
     export_dir = Path(s.portfolio_export_dir).expanduser() if s.portfolio_export_dir else None
     return PisoTiyempoPortfolio(s.portfolio_feed_url, export_dir)
+
+
+def _build_stock_alerts(s: Settings) -> StockAlertSource | None:
+    if not (s.portfolio_enabled and s.portfolio_alerts_enabled):
+        return None
+    from jarvis_core.adapters.portfolio.pisotiyempo import PisoTiyempoAlerts
+
+    database = Path(s.portfolio_database).expanduser() if s.portfolio_database else None
+    return PisoTiyempoAlerts(database)
 
 
 def _build_system(s: Settings) -> SystemMonitor | None:

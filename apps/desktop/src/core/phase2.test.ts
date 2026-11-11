@@ -20,9 +20,10 @@ describe('earconForTransition', () => {
   });
 
   it('every earcon is short and quiet', () => {
-    for (const tones of Object.values(EARCON_TONES)) {
+    for (const [name, tones] of Object.entries(EARCON_TONES)) {
       const end = Math.max(...tones.map((t) => t.at + t.length));
-      expect(end).toBeLessThan(0.6);
+      // The timer chime repeats on purpose so it's heard across the room.
+      expect(end).toBeLessThan(name === 'timer' ? 1.5 : 0.6);
       expect(Math.max(...tones.map((t) => t.gain))).toBeLessThanOrEqual(0.08);
     }
   });

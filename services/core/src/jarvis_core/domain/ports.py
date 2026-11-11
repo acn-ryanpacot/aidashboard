@@ -24,6 +24,7 @@ from jarvis_core.domain.models import (
     ToolSpec,
 )
 from jarvis_core.domain.records import (
+    AlertBook,
     CalendarEvent,
     DocumentHit,
     Headline,
@@ -35,6 +36,7 @@ from jarvis_core.domain.records import (
     StoredMemory,
     SystemStatus,
     Task,
+    Timer,
     WeatherReport,
 )
 
@@ -197,6 +199,30 @@ class ReminderRepository(Protocol):
         ...
 
 
+class TimerRepository(Protocol):
+    """Storage for :class:`~jarvis_core.domain.records.Timer`."""
+
+    async def add(self, label: str, duration_s: int, ends_at: datetime) -> Timer:
+        """Start a timer."""
+        ...
+
+    async def active(self) -> list[Timer]:
+        """Timers still counting down, soonest first."""
+        ...
+
+    async def due(self, now: datetime) -> list[Timer]:
+        """Running timers that have reached zero."""
+        ...
+
+    async def mark_done(self, timer_id: int) -> None:
+        """Record that a timer rang."""
+        ...
+
+    async def delete(self, timer_id: int) -> bool:
+        """Cancel a timer."""
+        ...
+
+
 class MemoryStore(Protocol):
     """Storage for long-term memories and their embeddings."""
 
@@ -282,6 +308,18 @@ class PortfolioSource(Protocol):
 
         Raises:
             DataSourceUnavailableError: If the app can't be reached and has no exported data.
+        """
+        ...
+
+
+class StockAlertSource(Protocol):
+    """Price/signal alerts the user set in the portfolio app (read-only)."""
+
+    async def alert_book(self) -> AlertBook:
+        """Active alert rules plus the latest quotes for their symbols.
+
+        Raises:
+            DataSourceUnavailableError: If the app's data can't be read.
         """
         ...
 

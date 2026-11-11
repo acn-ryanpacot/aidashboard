@@ -7,7 +7,7 @@
 import { type AssistantStoreApi, createAssistantStore } from '../../state/assistantStore';
 import { coreApi } from '../api/client';
 import { EchoGate, FrameRing, pcm16Rms } from '../audio/echoGate';
-import { EarconPlayer, earconForTransition } from '../audio/earcons';
+import { EarconPlayer, earconForNotification, earconForTransition } from '../audio/earcons';
 import { MicrophoneCapture } from './MicrophoneCapture';
 import type { AssistantState, ServerMessage, SpeechSegmentMessage } from './protocol';
 import { type ActiveCaption, SpeechPlayer } from './SpeechPlayer';
@@ -286,10 +286,12 @@ export class VoiceAssistant {
           if (caps) store.setCapabilities({ ...caps, speaker_enrolled: true });
         }
         break;
-      case 'notification':
-        store.addMessage('notice', message.text);
-        if (!this.#quietNotifications) this.#earcons?.play('notify');
+      case 'notification': {
+        store.addNotice(message.kind, message.text);
+        const { earcon, always } = earconForNotification(message.kind);
+        if (always || !this.#quietNotifications) this.#earcons?.play(earcon);
         break;
+      }
       case 'data_changed':
         if (message.topic === 'settings') void this.#refreshSettings();
         store.bumpData(message.topic);

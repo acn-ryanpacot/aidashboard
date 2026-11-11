@@ -95,6 +95,32 @@ export function formatTradingDate(date: string | null): string {
   });
 }
 
+/**
+ * A timer's remaining time: "9:42", "1:02:05"; with `words`, "10 min" / "1 h 30 min" / "45 s".
+ */
+export function formatCountdown(seconds: number, { words = false } = {}): string {
+  const total = Math.max(0, Math.round(seconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (words) {
+    const parts = [h && `${h} h`, m && `${m} min`, s && `${s} s`].filter(Boolean);
+    return parts.join(' ') || '0 s';
+  }
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+
+/** How much of a timer has elapsed, 0 (just started) to 1 (done). */
+export function timerProgress(
+  timer: { readonly duration_s: number; readonly ends_at: string },
+  now: number = Date.now(),
+): number {
+  if (timer.duration_s <= 0) return 1;
+  const left = (new Date(timer.ends_at).getTime() - now) / 1000;
+  return Math.min(1, Math.max(0, 1 - left / timer.duration_s));
+}
+
 /** "3d 4h", "5h 12m", "18m". */
 export function formatUptime(seconds: number): string {
   const minutes = Math.floor(seconds / 60);

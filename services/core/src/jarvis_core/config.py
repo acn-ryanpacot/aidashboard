@@ -146,6 +146,7 @@ class Settings(BaseSettings):
     documents_dir: str = Field(default="", description="Folder of notes to search (RAG).")
     mcp_servers: list[McpServerSettings] = Field(default_factory=list)
     reminder_poll_s: float = Field(default=5.0, ge=1.0)
+    timer_poll_s: float = Field(default=1.0, ge=0.2, description="How often timers are checked.")
 
     # --- Dashboard data & briefing (defaults; editable in Settings) -----------
     news_feeds: list[str] = Field(
@@ -171,6 +172,13 @@ class Settings(BaseSettings):
     portfolio_export_dir: str = Field(
         default="", description="PisoTiyempo export folder (empty = its default location)."
     )
+    portfolio_alerts_enabled: bool = Field(
+        default=True, description="Speak PisoTiyempo stock alerts when they trigger."
+    )
+    portfolio_database: str = Field(
+        default="", description="PisoTiyempo's piso-tiyempo.db (empty = its default location)."
+    )
+    portfolio_alerts_poll_s: float = Field(default=120.0, ge=10.0)
 
     # --- Storage --------------------------------------------------------------
     data_dir: Path = Field(

@@ -16,6 +16,8 @@ export interface ConversationEntry {
   readonly streaming: boolean;
   /** Marks system entries that report a failure. */
   readonly isError?: boolean;
+  /** For notices: what announced it (`reminder`, `timer`, `alert`, `briefing`…). */
+  readonly kind?: string;
   /** Creation time (epoch ms). */
   readonly at: number;
 }
@@ -44,6 +46,15 @@ export function addEntry(
   isError = false,
 ): ConversationEntry[] {
   return push(entries, { speaker, text, streaming: false, isError });
+}
+
+/** Add a proactive message (reminder, timer, alert, briefing) announced by the core. */
+export function addNotice(
+  entries: readonly ConversationEntry[],
+  kind: string,
+  text: string,
+): ConversationEntry[] {
+  return push(entries, { speaker: 'notice', text, streaming: false, kind });
 }
 
 /** Append a streamed delta to the assistant's in-progress answer (creating it if needed). */

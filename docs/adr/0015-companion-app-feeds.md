@@ -18,6 +18,7 @@ The dashboard could call that API directly from the browser, but that would need
 2. An application service (`PortfolioService`) adds what Jarvis needs: the session label ("today" vs "last session", in Philippine time), peso moves per holding, and the trend-and-value **ideas screen**. Widgets, voice tools (`get_portfolio`, `get_stock_ideas`) and the briefing all use that one service.
 3. The widget is declared with `source: { kind: 'mobile-app', appId, endpoint }` and reads only the core's proxy route, `/api/apps/pisotiyempo`. Future companion apps follow the same pattern: one adapter, one service, one `/api/apps/<app>` route.
 4. The integration is **read-only**. Jarvis never writes to the other app's data.
+5. **Alerts** (added later) aren't in the feed, so a second adapter, `PisoTiyempoAlerts`, reads the alert rules and latest quotes from PisoTiyempo's SQLite file. The app's README offers that file for dashboards, and Jarvis opens it in read-only mode (`?mode=ro`). Jarvis applies the phone app's conditions itself and keeps its own "announced once per trading day" record in its own preferences table.
 
 The screen is rules-based and shows its reasons, rather than asking the language model to pick stocks: a local model has no market data and would invent picks. PisoTiyempo has no fundamentals, so "value" means *a reasonable entry within an uptrend* (RSI and the 50-day average), not P/E.
 

@@ -96,6 +96,17 @@ BUILTIN_GROUPS: tuple[ToolGroup, ...] = (
         (r"\bremind", r"\balarm\b", r"\bnudge me\b", r"\balert me\b", r"\bin \d+ (min|hour)"),
     ),
     ToolGroup(
+        "timers",
+        "Countdown timers: starting, checking or stopping them.",
+        ("set_timer", "list_timers", "cancel_timer"),
+        (
+            r"\btimers?\b",
+            r"\bcount ?down\b",
+            r"\bhow (long|much time) (is )?left\b",
+            r"\btime left\b",
+        ),
+    ),
+    ToolGroup(
         "memory",
         "Long-term facts about the user: remembering, recalling or forgetting them.",
         ("remember", "recall", "forget"),
@@ -186,8 +197,8 @@ BUILTIN_GROUPS: tuple[ToolGroup, ...] = (
     ),
     ToolGroup(
         "stocks",
-        "The user's stock portfolio on the Philippine Stock Exchange, or stocks worth buying.",
-        ("get_portfolio", "get_stock_ideas"),
+        "The user's stock portfolio on the Philippine Stock Exchange, alerts, or stocks to buy.",
+        ("get_portfolio", "get_stock_ideas", "get_stock_alerts"),
         (
             r"\bstocks?\b",
             r"\bshares\b",
@@ -198,6 +209,8 @@ BUILTIN_GROUPS: tuple[ToolGroup, ...] = (
             r"\bstock market\b",
             r"\bpiso ?tiyempo\b",
             r"\b(my|the) positions?\b",
+            r"\b(stock|price|my) alerts\b",
+            r"\balerts? (trigger|fire|go off)",
         ),
     ),
     ToolGroup(

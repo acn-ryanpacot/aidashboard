@@ -22,6 +22,16 @@ export interface Reminder {
   readonly created_at: string;
 }
 
+/** A running countdown (`GET /api/timers`); the UI counts down to `ends_at`. */
+export interface Timer {
+  readonly id: number;
+  /** What it's for, e.g. "rice" ("" if unnamed). */
+  readonly label: string;
+  readonly duration_s: number;
+  readonly ends_at: string;
+  readonly created_at: string;
+}
+
 /** A long-term memory (`GET /api/memories`). */
 export interface Memory {
   readonly id: number;
@@ -152,6 +162,15 @@ export interface StockIdea {
   readonly reasons: readonly string[];
 }
 
+/** One of your PisoTiyempo alerts that holds at the latest close. */
+export interface StockAlert {
+  readonly symbol: string;
+  /** `PRICE_ABOVE`, `PRICE_BELOW`, `BUY_SIGNAL`, `SELL_SIGNAL` or `PATTERN`. */
+  readonly kind: string;
+  readonly message: string;
+  readonly date: string;
+}
+
 /** `GET /api/apps/pisotiyempo`: the Portfolio widget's data. */
 export interface PisoTiyempoResponse {
   readonly status: 'ok' | 'unavailable' | 'disabled';
@@ -164,6 +183,8 @@ export interface PisoTiyempoResponse {
   readonly totals: PortfolioTotals | null;
   readonly holdings: readonly PortfolioHolding[];
   readonly ideas: readonly StockIdea[];
+  /** Your alerts that triggered at the latest close. */
+  readonly alerts: readonly StockAlert[];
   /** The screen's rules in one sentence. */
   readonly screen: string;
   readonly disclaimer: string;
@@ -210,6 +231,11 @@ export const coreApi = {
   deleteTask: (id: number) => request<undefined>(`/api/tasks/${id}`, { method: 'DELETE' }),
   listReminders: () => request<Reminder[]>('/api/reminders'),
   deleteReminder: (id: number) => request<undefined>(`/api/reminders/${id}`, { method: 'DELETE' }),
+  listTimers: () => request<Timer[]>('/api/timers'),
+  /** Start a timer from text like "10 min" or "12 min tea" (the rest becomes the label). */
+  startTimer: (duration: string, label = '') =>
+    request<Timer>('/api/timers', { method: 'POST', body: JSON.stringify({ duration, label }) }),
+  cancelTimer: (id: number) => request<undefined>(`/api/timers/${id}`, { method: 'DELETE' }),
   listMemories: () => request<Memory[]>('/api/memories'),
   deleteMemory: (id: number) => request<undefined>(`/api/memories/${id}`, { method: 'DELETE' }),
   resetVoiceprint: () => request<undefined>('/api/voiceprint', { method: 'DELETE' }),

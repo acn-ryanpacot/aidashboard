@@ -1,4 +1,4 @@
-"""Built-in tools: time, tasks, reminders, memory, weather, knowledge, web, documents, stocks.
+"""Built-in tools: time, tasks, reminders, timers, memory, weather, knowledge, web, stocks.
 
 Each factory closes over the ports it needs and returns :class:`Tool` objects.
 Results are short, factual strings — the model turns them into speech.
@@ -19,6 +19,16 @@ from jarvis_core.application.portfolio import (
     describe_ideas,
     describe_portfolio,
 )
+from jarvis_core.application.stock_alerts import StockAlertService, describe_rule
+from jarvis_core.application.timers import (
+    MAX_ACTIVE_TIMERS,
+    end_time,
+    parse_duration,
+    parse_timer_request,
+    remaining_s,
+    spoken_duration,
+    timer_name,
+)
 from jarvis_core.application.tools.registry import (
     Tool,
     ToolError,
@@ -35,10 +45,11 @@ from jarvis_core.domain.ports import (
     Notifier,
     ReminderRepository,
     TaskRepository,
+    TimerRepository,
     WeatherProvider,
     WebSearchProvider,
 )
-from jarvis_core.domain.records import Reminder, Task
+from jarvis_core.domain.records import Reminder, Task, Timer
 
 Clock = Callable[[], datetime]
 
@@ -235,6 +246,117 @@ def reminder_tools(
             ),
             "Updating your reminders",
             cancel_reminder,
+        ),
+    ]
+
+
+# -------------------------------------------------------------------- timers
+
+
+def _match_timer(timers: list[Timer], reference: str) -> list[Timer]:
+    reference = reference.strip().lower()
+    if not reference or reference in ("it", "the timer", "timer", "that"):
+        return timers if len(timers) == 1 else []
+    if reference in ("all", "all timers", "every timer", "everything"):
+        return timers
+    if reference.lstrip("#").isdigit():
+        return [t for t in timers if t.id == int(reference.lstrip("#"))]
+    by_label = [t for t in timers if t.label and reference in t.label.lower()]
+    if by_label:
+        return by_label
+    try:
+        seconds = parse_duration(reference)
+    except ValueError:
+        return []
+    return [t for t in timers if t.duration_s == seconds]
+
+
+def timer_tools(
+    repo: TimerRepository, notifier: Notifier | None = None, clock: Clock = local_now
+) -> list[Tool]:
+    """``set_timer``, ``list_timers``, ``cancel_timer``."""
+
+    async def changed() -> None:
+        if notifier is not None:
+            await notifier.data_changed("timers")
+
+    async def set_timer(args: Mapping[str, Any]) -> str:
+        raw = args.get("duration")
+        if isinstance(raw, int | float) and not isinstance(raw, bool):
+            raw = f"{raw} minutes"
+        if not isinstance(raw, str) or not raw.strip():
+            raise ToolError("'duration' is required, e.g. '10 minutes'")
+        try:
+            seconds, leftover = parse_timer_request(raw)
+        except ValueError as exc:
+            raise ToolError(str(exc)) from exc
+        label = (text_arg(args, "label", required=False) or leftover).strip()
+        if len(await repo.active()) >= MAX_ACTIVE_TIMERS:
+            raise ToolError(f"there are already {MAX_ACTIVE_TIMERS} timers running")
+        now = clock()
+        timer = await repo.add(label, seconds, end_time(now, seconds))
+        await changed()
+        return (
+            f"Started {timer_name(timer)} for {spoken_duration(seconds)}; "
+            f"it rings {spoken_time(timer.ends_at, now)}."
+        )
+
+    async def list_timers(_: Mapping[str, Any]) -> str:
+        now = clock()
+        timers = await repo.active()
+        if not timers:
+            return "No timers are running."
+        items = "; ".join(
+            f"{timer_name(t)}: {spoken_duration(remaining_s(t, now))} left" for t in timers[:10]
+        )
+        return f"{len(timers)} timer(s) running: {items}."
+
+    async def cancel_timer(args: Mapping[str, Any]) -> str:
+        timers = await repo.active()
+        if not timers:
+            raise ToolError("no timers are running")
+        reference = text_arg(args, "timer", required=False) or ""
+        matches = _match_timer(timers, reference)
+        if not matches:
+            raise ToolError(
+                f"no running timer matches '{reference}'"
+                if reference
+                else "several timers are running; ask which one"
+            )
+        for timer in matches:
+            await repo.delete(timer.id)
+        await changed()
+        return "Cancelled " + ", ".join(timer_name(t) for t in matches) + "."
+
+    return [
+        Tool(
+            ToolSpec(
+                "set_timer",
+                "Start a countdown timer that rings when done, e.g. '10 minutes' for the rice.",
+                schema(
+                    {
+                        "duration": _string("How long, e.g. '10 minutes', '1h30m', '90 seconds'."),
+                        "label": _string("Optional name, e.g. 'rice' or 'tea'."),
+                    },
+                    ["duration"],
+                ),
+            ),
+            "Starting a timer",
+            set_timer,
+        ),
+        Tool(
+            ToolSpec("list_timers", "List running timers and the time left on each."),
+            "Checking your timers",
+            list_timers,
+        ),
+        Tool(
+            ToolSpec(
+                "cancel_timer",
+                "Stop a running timer.",
+                schema({"timer": _string("Its name or duration, or 'all'. Optional if only one.")}),
+            ),
+            "Stopping the timer",
+            cancel_timer,
         ),
     ]
 
@@ -528,6 +650,39 @@ def portfolio_tools(portfolio: PortfolioService) -> list[Tool]:
             "Screening PSE stocks",
             get_stock_ideas,
         ),
+    ]
+
+
+def stock_alert_tools(alerts: StockAlertService) -> list[Tool]:
+    """``get_stock_alerts`` (the user's PisoTiyempo alerts)."""
+
+    async def get_stock_alerts(_: Mapping[str, Any]) -> str:
+        rules = await alerts.rules()
+        if not rules:
+            return "There are no active PisoTiyempo alerts (they're set in the PisoTiyempo app)."
+        triggered = await alerts.triggered()
+        fired = {a.rule.uid for a in triggered}
+        waiting = [describe_rule(r, spoken=True) for r in rules if r.uid not in fired]
+        # Keep the two groups explicit: small models otherwise blur them together.
+        parts = [
+            f"TRIGGERED at the latest close ({len(triggered)}): "
+            + " ".join(a.spoken for a in triggered)
+            if triggered
+            else f"None of the {len(rules)} PisoTiyempo alerts triggered at the latest close."
+        ]
+        if waiting:
+            parts.append(f"NOT triggered ({len(waiting)}): " + "; ".join(waiting[:12]) + ".")
+        return " ".join(parts)
+
+    return [
+        Tool(
+            ToolSpec(
+                "get_stock_alerts",
+                "List the user's PisoTiyempo stock alerts and which triggered at the latest close.",
+            ),
+            "Checking your stock alerts",
+            get_stock_alerts,
+        )
     ]
 
 

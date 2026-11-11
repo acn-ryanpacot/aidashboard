@@ -18,6 +18,7 @@ import {
   type ConversationEntry,
   type Speaker,
   addEntry,
+  addNotice,
   appendAssistantDelta,
   completeAssistantTurn,
 } from './conversation';
@@ -63,6 +64,8 @@ export interface AssistantActions {
   setMic(active: boolean, error?: string | null): void;
   setSoundsEnabled(enabled: boolean): void;
   addMessage(speaker: Speaker, text: string, isError?: boolean): void;
+  /** A proactive announcement from the core (`kind`: reminder, timer, alert, briefing…). */
+  addNotice(kind: string, text: string): void;
   appendAssistant(delta: string): void;
   completeAssistant(text: string): void;
   setActiveTool(label: string | null): void;
@@ -118,6 +121,7 @@ export function createAssistantStore() {
     },
     addMessage: (speaker, text, isError = false) =>
       set((s) => ({ entries: addEntry(s.entries, speaker, text, isError) })),
+    addNotice: (kind, text) => set((s) => ({ entries: addNotice(s.entries, kind, text) })),
     appendAssistant: (delta) => set((s) => ({ entries: appendAssistantDelta(s.entries, delta) })),
     completeAssistant: (text) => set((s) => ({ entries: completeAssistantTurn(s.entries, text) })),
     setActiveTool: (activeTool) => set({ activeTool }),

@@ -4,7 +4,17 @@ import { DEFAULT_USER_NAME } from '../../config';
 import { useAssistant } from '../../core/voice/hooks';
 import { cn } from '../../lib/cn';
 
-const SPEAKER_LABEL: Partial<Record<string, string>> = { system: 'System', notice: 'Reminder' };
+const SPEAKER_LABEL: Partial<Record<string, string>> = { system: 'System' };
+
+/** Transcript label for an announcement, by the kind the core sent. */
+const NOTICE_LABEL: Partial<Record<string, string>> = {
+  reminder: 'Reminder',
+  timer: 'Timer',
+  alert: 'Stock alert',
+  briefing: 'Briefing',
+};
+
+const noticeLabel = (kind: string | undefined) => (kind && NOTICE_LABEL[kind]) ?? 'Notice';
 
 /** Scrolling transcript of the current session. */
 export function ConversationWidget() {
@@ -38,7 +48,10 @@ export function ConversationWidget() {
               entry.speaker === 'notice' && 'text-gold-400/80',
             )}
           >
-            {SPEAKER_LABEL[entry.speaker] ?? (entry.speaker === 'user' ? userName : assistantName)}
+            {entry.speaker === 'notice'
+              ? noticeLabel(entry.kind)
+              : (SPEAKER_LABEL[entry.speaker] ??
+                (entry.speaker === 'user' ? userName : assistantName))}
           </h3>
           <p
             className={cn(

@@ -1,4 +1,4 @@
-"""REST endpoints for the data Jarvis owns: tasks, reminders, memories, voice ID.
+"""REST endpoints for the data Jarvis owns: tasks, reminders, timers, memories, voice ID.
 
 These are what dashboard widgets read and — later — what the mobile apps sync
 with. Every mutation broadcasts ``data_changed`` so all open UIs refresh.
@@ -11,8 +11,9 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
+from jarvis_core.application.timers import MAX_ACTIVE_TIMERS, end_time, parse_timer_request
 from jarvis_core.container import Container
-from jarvis_core.domain.records import MemoryRecord, Reminder, Task
+from jarvis_core.domain.records import MemoryRecord, Reminder, Task, Timer
 
 router = APIRouter(prefix="/api", tags=["data"])
 
@@ -82,6 +83,38 @@ class ReminderIn(BaseModel):
 
     text: str = Field(min_length=1, max_length=300)
     due_at: datetime
+
+
+class TimerOut(BaseModel):
+    """A running timer (the UI counts down to ``ends_at`` itself)."""
+
+    id: int
+    label: str
+    duration_s: int
+    ends_at: datetime
+    created_at: datetime
+
+    @classmethod
+    def of(cls, timer: Timer) -> TimerOut:
+        """Build from the domain record."""
+        return cls(
+            id=timer.id,
+            label=timer.label,
+            duration_s=timer.duration_s,
+            ends_at=timer.ends_at,
+            created_at=timer.created_at,
+        )
+
+
+class TimerIn(BaseModel):
+    """Payload to start a timer.
+
+    ``duration`` is spoken-style text ("10 min", "1h30m", "12 min tea"); words
+    other than the duration become the label unless ``label`` is given.
+    """
+
+    duration: str = Field(min_length=1, max_length=120)
+    label: str = Field(default="", max_length=60)
 
 
 class MemoryOut(BaseModel):
@@ -163,6 +196,42 @@ async def delete_reminder(request: Request, reminder_id: int) -> None:
     if not await container.reminders.delete(reminder_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Reminder not found")
     await container.hub.data_changed("reminders")
+
+
+# ------------------------------------------------------------------- timers
+
+
+@router.get("/timers", response_model=list[TimerOut])
+async def list_timers(request: Request) -> list[TimerOut]:
+    """Running timers, soonest first."""
+    return [TimerOut.of(t) for t in await _container(request).timers.active()]
+
+
+@router.post("/timers", response_model=TimerOut, status_code=status.HTTP_201_CREATED)
+async def create_timer(request: Request, body: TimerIn) -> TimerOut:
+    """Start a timer."""
+    try:
+        seconds, leftover = parse_timer_request(body.duration)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    container = _container(request)
+    if len(await container.timers.active()) >= MAX_ACTIVE_TIMERS:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Too many timers are running")
+    label = (body.label or leftover)[:60]
+    timer = await container.timers.add(
+        label, seconds, end_time(datetime.now().astimezone(), seconds)
+    )
+    await container.hub.data_changed("timers")
+    return TimerOut.of(timer)
+
+
+@router.delete("/timers/{timer_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_timer(request: Request, timer_id: int) -> None:
+    """Cancel a timer."""
+    container = _container(request)
+    if not await container.timers.delete(timer_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Timer not found")
+    await container.hub.data_changed("timers")
 
 
 # ----------------------------------------------------------------- memories

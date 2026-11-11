@@ -49,6 +49,27 @@ class Reminder:
 
 
 @dataclass(frozen=True, slots=True)
+class Timer:
+    """A countdown that Jarvis announces when it reaches zero.
+
+    Attributes:
+        id: Database id.
+        label: What it's for, e.g. "rice" ("" if unnamed).
+        duration_s: Total length in seconds.
+        ends_at: When it rings (timezone-aware).
+        created_at: When it was started.
+        done: Whether it has rung.
+    """
+
+    id: int
+    label: str
+    duration_s: int
+    ends_at: datetime
+    created_at: datetime
+    done: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class MemoryRecord:
     """A fact Jarvis has been asked to remember long-term.
 
@@ -289,3 +310,49 @@ class PortfolioSnapshot:
     holdings: tuple[StockHolding, ...]
     analyses: tuple[StockAnalysis, ...]
     source: str
+
+
+@dataclass(frozen=True, slots=True)
+class StockAlertRule:
+    """An alert the user set in the portfolio app.
+
+    Attributes:
+        uid: The app's id for it.
+        symbol: Ticker.
+        kind: ``PRICE_ABOVE``, ``PRICE_BELOW``, ``BUY_SIGNAL``, ``SELL_SIGNAL`` or ``PATTERN``.
+        threshold: Price threshold for the price kinds.
+    """
+
+    uid: str
+    symbol: str
+    kind: str
+    threshold: float | None
+
+
+@dataclass(frozen=True, slots=True)
+class StockQuote:
+    """The latest close of a stock, with that day's analysis if there is one.
+
+    Attributes:
+        symbol: Ticker.
+        close: Closing price.
+        day: Trading date of ``close``.
+        score: Analysis score (-100 to +100), if analysed.
+        analysis_date: Date the analysis is for.
+        patterns: Chart/candlestick patterns detected in that analysis.
+    """
+
+    symbol: str
+    close: float
+    day: date
+    score: int | None = None
+    analysis_date: date | None = None
+    patterns: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class AlertBook:
+    """Active alert rules and the quotes needed to check them."""
+
+    rules: tuple[StockAlertRule, ...]
+    quotes: dict[str, StockQuote]
