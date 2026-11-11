@@ -25,7 +25,7 @@ from jarvis_core.application.tools.routing import BUILTIN_GROUPS
 from jarvis_core.domain.errors import DataSourceUnavailableError
 from jarvis_core.domain.models import ToolCall
 from jarvis_core.domain.records import AlertBook, StockAlertRule, StockQuote
-from tests.fakes import FixedClock, MemoryPreferences, RecordingNotifier
+from tests.fakes import LOCAL, FixedClock, MemoryPreferences, RecordingNotifier
 
 TUESDAY = date(2026, 11, 10)
 EVENING = datetime(2026, 11, 10, 18, 30, tzinfo=PSE_TIME)
@@ -226,7 +226,7 @@ def test_api_lists_triggered_alerts(tmp_path: Path) -> None:
         portfolio=FakePortfolio(snapshot()),
         stock_alerts=PisoTiyempoAlerts(path),
     )
-    with TestClient(create_app(container=container)) as client:
+    with TestClient(create_app(container=container), client=LOCAL) as client:
         alerts = client.get("/api/apps/pisotiyempo").json()["alerts"]
     # Price alerts only: the analyses in the fixture are for another day now.
     assert [(a["symbol"], a["kind"]) for a in alerts] == [

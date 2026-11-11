@@ -35,6 +35,9 @@ from jarvis_core.domain.records import (
 
 T = TypeVar("T")
 
+#: TestClient peer address for "this PC" (its default, "testclient", counts as remote).
+LOCAL = ("127.0.0.1", 50000)
+
 FRAME_BYTES = 2560
 SILENCE = b"\x00" * FRAME_BYTES
 SPEECH = b"\x10\x27" * (FRAME_BYTES // 2)  # constant 10000 amplitude — "Ryan"

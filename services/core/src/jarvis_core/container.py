@@ -21,6 +21,7 @@ import structlog
 
 from jarvis_core.adapters.persistence.database import Database
 from jarvis_core.adapters.persistence.repositories import (
+    SqliteDeviceTokenRepository,
     SqliteMemoryStore,
     SqlitePreferenceStore,
     SqliteReminderRepository,
@@ -30,6 +31,7 @@ from jarvis_core.adapters.persistence.repositories import (
 from jarvis_core.application.brain import Brain
 from jarvis_core.application.briefing import BriefingScheduler, BriefingService
 from jarvis_core.application.conversation import ConversationHistory
+from jarvis_core.application.devices import DeviceAccess
 from jarvis_core.application.endpointing import EndpointingConfig, UtteranceRecorder
 from jarvis_core.application.greeting import GreetingCache
 from jarvis_core.application.hub import SessionHub
@@ -58,6 +60,7 @@ from jarvis_core.domain.ports import (
     PortfolioSource,
     PreferenceStore,
     ReminderRepository,
+    RemoteAccessProbe,
     SpeakerEncoder,
     SpeechToText,
     StockAlertSource,
@@ -126,6 +129,7 @@ class Container:
     tasks: TaskRepository
     reminders: ReminderRepository
     timers: TimerRepository
+    devices: DeviceAccess
     memory: MemoryService | None
     stt: SpeechToText | None
     tts: TextToSpeech | None
@@ -138,6 +142,7 @@ class Container:
     schedule: ScheduleService | None = None
     portfolio: PortfolioService | None = None
     stock_alerts: StockAlertService | None = None
+    remote: RemoteAccessProbe | None = None
     system: SystemMonitor | None = None
     speaker: SpeakerVerification | None = None
     router: ToolRouter | None = None
@@ -249,6 +254,7 @@ def assemble(
     calendar: CalendarProvider | None = None,
     portfolio: PortfolioSource | None = None,
     stock_alerts: StockAlertSource | None = None,
+    remote: RemoteAccessProbe | None = None,
     system: SystemMonitor | None = None,
     speaker_encoder: SpeakerEncoder | None = None,
     voiceprints: VoiceprintStore | None = None,
@@ -274,6 +280,7 @@ def assemble(
         calendar: ICS reader.
         portfolio: Stock portfolio from a companion app (PisoTiyempo).
         stock_alerts: The user's stock alert rules in that app.
+        remote: Tailscale status, for pairing phones.
         system: Host monitor.
         speaker_encoder: Voice-ID embedding model.
         voiceprints: Voice-ID persistence.
@@ -436,6 +443,7 @@ def assemble(
         tasks=tasks,
         reminders=reminders,
         timers=timers,
+        devices=DeviceAccess(SqliteDeviceTokenRepository(database)),
         memory=memory,
         stt=stt,
         tts=tts,
@@ -448,6 +456,7 @@ def assemble(
         schedule=schedule_service,
         portfolio=portfolio_service,
         stock_alerts=alert_service,
+        remote=remote,
         system=system,
         speaker=speaker,
         router=router,
@@ -534,6 +543,7 @@ def build_container(settings: Settings) -> Container:
         calendar=_build_calendar(),
         portfolio=_build_portfolio(s),
         stock_alerts=_build_stock_alerts(s),
+        remote=_build_remote(s),
         system=_build_system(s),
         speaker_encoder=speaker_encoder if stt is not None else None,
         voiceprints=voiceprints,
@@ -696,6 +706,12 @@ def _build_stock_alerts(s: Settings) -> StockAlertSource | None:
 
     database = Path(s.portfolio_database).expanduser() if s.portfolio_database else None
     return PisoTiyempoAlerts(database)
+
+
+def _build_remote(s: Settings) -> RemoteAccessProbe:
+    from jarvis_core.adapters.system.tailscale import TailscaleProbe
+
+    return TailscaleProbe(s.port)
 
 
 def _build_system(s: Settings) -> SystemMonitor | None:

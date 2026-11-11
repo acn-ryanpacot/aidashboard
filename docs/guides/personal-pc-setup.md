@@ -232,6 +232,9 @@ Kokoro and voice ID use the GPU automatically when PyTorch can see it. You can c
 !!! important "Using PisoTiyempo on this PC?"
     Its desktop app also uses port **8765**. Before starting Jarvis, add `feedPort=8766` to `%APPDATA%\PisoTiyempo\config.properties`. The [PisoTiyempo guide](pisotiyempo.md) has the details, and covers adding the Portfolio widget.
 
+!!! tip "Jarvis on your phone"
+    Once everything works on the PC, the [Phone access guide](phone-access.md) adds your phone through Tailscale, which is free and opens nothing to the internet.
+
 ---
 
 ## 7. (Optional) The exact phrase "Hello Jarvis"

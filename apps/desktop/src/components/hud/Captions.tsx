@@ -11,6 +11,10 @@ interface CaptionView {
   readonly wordIndex: number;
 }
 
+/** Touch screens (phones) have no keyboard shortcut to mention. */
+const TOUCH =
+  typeof window !== 'undefined' && Boolean(window.matchMedia?.('(pointer: coarse)').matches);
+
 /** Track the caption at display rate, re-rendering only when the word changes. */
 function useLiveCaption(): CaptionView | null {
   const assistant = useVoiceAssistant();
@@ -71,8 +75,8 @@ export function Captions() {
         : rejected
           ? 'Voice not recognised'
           : phrase
-            ? `Say “${phrase}”, tap the core, or Ctrl+Space`
-            : 'Tap the core, press Ctrl+Space, or type below';
+            ? `Say “${phrase}” or tap the core${TOUCH ? '' : ', or Ctrl+Space'}`
+            : `Tap the core${TOUCH ? '' : ', press Ctrl+Space,'} or type below`;
 
   return (
     <div className="flex min-h-[7.5rem] w-full max-w-3xl flex-col items-center gap-3 text-center">

@@ -4,6 +4,7 @@
  * @module
  */
 import { CORE_HTTP_URL } from '../../config';
+import { authHeaders, markUnpaired } from './session';
 
 /** A to-do item (`GET /api/tasks`). */
 export interface Task {
@@ -190,6 +191,38 @@ export interface PisoTiyempoResponse {
   readonly disclaimer: string;
 }
 
+/** `GET /api/session`: whether this is the PC itself or a paired device. */
+export interface SessionInfo {
+  readonly local: boolean;
+  readonly device: string | null;
+}
+
+/** A device paired for phone access (tokens are never shown again). */
+export interface Device {
+  readonly id: number;
+  readonly name: string;
+  readonly created_at: string;
+  readonly last_used_at: string | null;
+}
+
+/** A newly paired device: `pair_url` opens Jarvis on the phone and pairs it. */
+export interface PairedDevice extends Device {
+  readonly token: string;
+  /** Empty until `tailscale serve` publishes Jarvis. */
+  readonly pair_url: string;
+}
+
+/** `GET /api/devices/remote`: what the Phone access setup still needs. */
+export interface RemoteStatus {
+  readonly installed: boolean;
+  readonly running: boolean;
+  readonly dns_name: string;
+  readonly public_url: string;
+  readonly port: number;
+  /** Whether the core serves the built dashboard (needed for phones). */
+  readonly web_ui: boolean;
+}
+
 /** Raised for non-2xx responses; `message` carries the server's explanation. */
 export class ApiError extends Error {
   override readonly name = 'ApiError';
@@ -204,8 +237,9 @@ export class ApiError extends Error {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${CORE_HTTP_URL}${path}`, {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
+    headers: { 'Content-Type': 'application/json', ...authHeaders(), ...init?.headers },
   });
+  if (response.status === 401) markUnpaired(); // a phone whose token is missing or revoked
   if (!response.ok) {
     let detail = `${init?.method ?? 'GET'} ${path} → ${response.status}`;
     try {
@@ -257,6 +291,13 @@ export const coreApi = {
   getCalendar: (days = 2) => request<CalendarResponse>(`/api/calendar?days=${days}`),
   getSystem: () => request<SystemSnapshot>('/api/system'),
   getPisoTiyempo: () => request<PisoTiyempoResponse>('/api/apps/pisotiyempo'),
+
+  getSession: () => request<SessionInfo>('/api/session'),
+  listDevices: () => request<Device[]>('/api/devices'),
+  pairDevice: (name: string) =>
+    request<PairedDevice>('/api/devices', { method: 'POST', body: JSON.stringify({ name }) }),
+  revokeDevice: (id: number) => request<undefined>(`/api/devices/${id}`, { method: 'DELETE' }),
+  getRemoteStatus: () => request<RemoteStatus>('/api/devices/remote'),
 };
 
 /**

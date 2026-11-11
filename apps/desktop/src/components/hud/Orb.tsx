@@ -75,7 +75,7 @@ export function Orb() {
   }, [assistant]);
 
   return (
-    <div className="relative flex aspect-square w-full max-w-[min(68vh,720px)] items-center justify-center">
+    <div className="relative flex aspect-square w-full max-w-[min(46vh,420px)] items-center justify-center xl:max-w-[min(68vh,720px)]">
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden />
       <button
         type="button"

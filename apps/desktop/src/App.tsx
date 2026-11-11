@@ -8,6 +8,7 @@ import { CommandPalette } from './components/hud/CommandPalette';
 import { EngageOverlay } from './components/hud/EngageOverlay';
 import { EnrollmentOverlay } from './components/hud/EnrollmentOverlay';
 import { Orb } from './components/hud/Orb';
+import { PairingScreen } from './components/hud/PairingScreen';
 import { StatusBar } from './components/hud/StatusBar';
 import { useAmbientMode } from './components/hud/useAmbientMode';
 import { SettingsPanel } from './components/settings/SettingsPanel';
@@ -64,9 +65,14 @@ function Hud() {
             Editing layout · drag tiles · ± to resize
           </p>
         )}
+        {/*
+          Desktop (xl+): three columns that fit the window. Phone and tablet: one
+          scrolling column with the core first, then the widgets stacked below.
+        */}
         <main
           className={cn(
-            'grid min-h-0 flex-1 grid-cols-1 gap-6 px-8 pb-8',
+            'hud-scroll flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-4 pb-8 sm:px-8',
+            'xl:grid xl:grid-cols-1 xl:overflow-visible',
             !focus && 'xl:grid-cols-[minmax(300px,340px)_1fr_minmax(320px,380px)]',
           )}
         >
@@ -74,7 +80,7 @@ function Hud() {
             {!focus && (
               <motion.div
                 key="left"
-                className="hidden min-h-0 xl:flex"
+                className="order-2 flex min-h-0 shrink-0 xl:order-none"
                 initial={{ opacity: 0, x: -12 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -12 }}
@@ -88,7 +94,7 @@ function Hud() {
             initial={{ opacity: 0, scale: 0.97 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
-            className="flex min-h-0 flex-col items-center justify-center gap-6"
+            className="order-1 flex shrink-0 flex-col items-center justify-center gap-6 xl:order-none xl:min-h-0 xl:shrink"
           >
             <Orb />
             <Captions />
@@ -99,7 +105,7 @@ function Hud() {
             {!focus && (
               <motion.div
                 key="right"
-                className="hidden min-h-0 xl:flex"
+                className="order-3 flex min-h-0 shrink-0 xl:order-none"
                 initial={{ opacity: 0, x: 12 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 12 }}
@@ -116,6 +122,7 @@ function Hud() {
       <WidgetGallery />
       <EngageOverlay />
       <EnrollmentOverlay />
+      <PairingScreen />
     </>
   );
 }

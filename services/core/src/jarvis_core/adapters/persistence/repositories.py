@@ -11,7 +11,14 @@ from typing import Any
 import numpy as np
 
 from jarvis_core.adapters.persistence.database import Database, from_db_time, to_db_time, utc_now
-from jarvis_core.domain.records import MemoryRecord, Reminder, StoredMemory, Task, Timer
+from jarvis_core.domain.records import (
+    DeviceRecord,
+    MemoryRecord,
+    Reminder,
+    StoredMemory,
+    Task,
+    Timer,
+)
 
 
 def _encode_vector(vector: Sequence[float] | None) -> bytes | None:
@@ -207,6 +214,64 @@ class SqliteTimerRepository:
         """Cancel a timer."""
         return await self._db.run(
             lambda c: c.execute("DELETE FROM timers WHERE id = ?", (timer_id,)).rowcount > 0
+        )
+
+
+# ------------------------------------------------------------------- devices
+
+
+def _device(row: sqlite3.Row) -> DeviceRecord:
+    return DeviceRecord(
+        id=row["id"],
+        name=row["name"],
+        created_at=_required_time(row["created_at"]),
+        last_used_at=from_db_time(row["last_used_at"]),
+    )
+
+
+class SqliteDeviceTokenRepository:
+    """Implements :class:`~jarvis_core.domain.ports.DeviceTokenRepository`."""
+
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    async def add(self, name: str, token_hash: str) -> DeviceRecord:
+        """Register a device."""
+
+        def op(conn: sqlite3.Connection) -> DeviceRecord:
+            cursor = conn.execute(
+                "INSERT INTO device_tokens (name, token_hash, created_at) "
+                "VALUES (?, ?, ?) RETURNING *",
+                (name.strip(), token_hash, to_db_time(utc_now())),
+            )
+            return _device(cursor.fetchone())
+
+        return await self._db.run(op)
+
+    async def find(self, token_hash: str) -> DeviceRecord | None:
+        """The device with this token hash, if any."""
+        sql = "SELECT * FROM device_tokens WHERE token_hash = ?"
+        row = await self._db.run(lambda c: c.execute(sql, (token_hash,)).fetchone())
+        return _device(row) if row else None
+
+    async def list_all(self) -> list[DeviceRecord]:
+        """Every paired device, newest first."""
+        sql = "SELECT * FROM device_tokens ORDER BY created_at DESC, id DESC"
+        return await self._db.run(lambda c: [_device(r) for r in c.execute(sql)])
+
+    async def touch(self, device_id: int, when: datetime) -> None:
+        """Record that a device made a request."""
+        await self._db.run(
+            lambda c: c.execute(
+                "UPDATE device_tokens SET last_used_at = ? WHERE id = ?",
+                (to_db_time(when), device_id),
+            )
+        )
+
+    async def delete(self, device_id: int) -> bool:
+        """Revoke a device."""
+        return await self._db.run(
+            lambda c: c.execute("DELETE FROM device_tokens WHERE id = ?", (device_id,)).rowcount > 0
         )
 
 

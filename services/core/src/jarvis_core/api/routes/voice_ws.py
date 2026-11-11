@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from urllib.parse import urlsplit
 
 import structlog
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
@@ -23,6 +24,12 @@ from jarvis_core.api.protocol import (
     client_message_adapter,
     to_server_message,
 )
+from jarvis_core.application.devices import (
+    WS_PROTOCOL,
+    is_local,
+    offered_protocols,
+    websocket_token,
+)
 from jarvis_core.application.voice_session import VoiceSession
 from jarvis_core.container import Container
 from jarvis_core.domain.events import SpeechSegmentReady, VoiceEvent
@@ -32,6 +39,9 @@ log = structlog.get_logger(__name__)
 router = APIRouter()
 
 _FRAME_BYTES = INPUT_FRAME_SAMPLES * PCM16_SAMPLE_WIDTH
+
+#: Close code for a remote device without a valid token (the UI shows pairing).
+UNPAIRED_CLOSE_CODE = 4401
 
 
 class WebSocketEventSink:
@@ -61,13 +71,16 @@ class WebSocketEventSink:
         await self._ws.send_text(message.model_dump_json())
 
 
-def origin_allowed(origin: str | None, allowed: list[str]) -> bool:
+def origin_allowed(origin: str | None, allowed: list[str], host: str | None = None) -> bool:
     """Browsers don't apply CORS to WebSockets, so check ``Origin`` ourselves.
 
-    Requests without an Origin header (CLI tools, tests, native mobile apps)
-    are allowed; the server only listens on loopback by default.
+    Allowed: no Origin header (CLI tools, tests, native mobile apps), a listed
+    origin, or the page's own origin, i.e. the web UI served by this core
+    (including through ``tailscale serve``, where ``host`` is the ts.net name).
     """
-    return origin is None or origin in allowed
+    if origin is None or origin in allowed:
+        return True
+    return host is not None and urlsplit(origin).netloc.lower() == host.lower()
 
 
 def ready_message(container: Container) -> ReadyMessage:
@@ -95,12 +108,31 @@ def ready_message(container: Container) -> ReadyMessage:
 async def voice_socket(websocket: WebSocket) -> None:
     """Run a voice session for the lifetime of the connection."""
     container: Container = websocket.app.state.container
-    if not origin_allowed(websocket.headers.get("origin"), container.settings.allowed_origins):
-        log.warning("ws_origin_rejected", origin=websocket.headers.get("origin"))
+    headers = websocket.headers
+    host = headers.get("x-forwarded-host") or headers.get("host")
+    if not origin_allowed(headers.get("origin"), container.settings.allowed_origins, host):
+        log.warning("ws_origin_rejected", origin=headers.get("origin"))
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
-    await websocket.accept()
+    protocols_header = headers.get("sec-websocket-protocol")
+    client = websocket.client.host if websocket.client else None
+    device = (
+        None
+        if is_local(client, headers)
+        else await container.devices.verify(websocket_token(protocols_header))
+    )
+
+    # Echo our subprotocol only if the client offered it (browsers require that).
+    subprotocol = WS_PROTOCOL if WS_PROTOCOL in offered_protocols(protocols_header) else None
+    await websocket.accept(subprotocol=subprotocol)
+    if device is None and not is_local(client, headers):
+        # Closing after accept lets the browser see the code (before, it's a bare 403).
+        log.warning("ws_device_rejected", client=client)
+        await websocket.close(code=UNPAIRED_CLOSE_CODE, reason="unpaired")
+        return
+    if device is not None:
+        log.info("ws_device", device=device.name)
     sink = WebSocketEventSink(websocket)
     session = container.new_session(sink)
     await sink.send(ready_message(container))

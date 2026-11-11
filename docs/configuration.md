@@ -15,11 +15,14 @@ Settings are read from environment variables prefixed with `JARVIS_`, or from `s
 
 | Variable                | Default       | Notes                                                       |
 | ----------------------- | ------------- | ----------------------------------------------------------- |
-| `JARVIS_HOST`           | `127.0.0.1`   | Keep on loopback unless you add authentication              |
+| `JARVIS_HOST`           | `127.0.0.1`   | Keep on loopback; phones use `tailscale serve` ([guide](guides/phone-access.md)) |
 | `JARVIS_PORT`           | `8765`        |                                                             |
 | `JARVIS_LOG_LEVEL`      | `INFO`        | `DEBUG` shows per-turn details                              |
 | `JARVIS_LOG_JSON`       | `false`       | One JSON object per line                                    |
-| `JARVIS_ALLOWED_ORIGINS`| Vite + Tauri  | JSON list of origins allowed to open the WebSocket          |
+| `JARVIS_ALLOWED_ORIGINS`| Vite + Tauri  | JSON list of origins allowed to open the WebSocket (the page served by the core is always allowed) |
+| `JARVIS_WEB_DIST`       | `apps/desktop/dist` | Built dashboard served at `/` for phones; build with `pnpm --filter @jarvis/desktop build` |
+
+Requests from other devices (anything relayed by `tailscale serve`, or not from loopback) need a paired **device token**. Pair phones in **Settings → Phone access**, or with `uv run jarvis-token create <name>`.
 
 ### Persona
 

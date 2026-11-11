@@ -24,7 +24,7 @@ from jarvis_core.application.tools.routing import BUILTIN_GROUPS
 from jarvis_core.config import Settings
 from jarvis_core.container import assemble
 from jarvis_core.domain.models import ToolCall
-from tests.fakes import FakeLlm, FakeVad, FixedClock, RecordingNotifier
+from tests.fakes import LOCAL, FakeLlm, FakeVad, FixedClock, RecordingNotifier
 
 TZ = timezone(timedelta(hours=8))
 NOW = datetime(2026, 11, 11, 18, 0, tzinfo=TZ)
@@ -153,7 +153,7 @@ def client() -> Iterator[TestClient]:
         database=Database(":memory:"),
         vad_factory=FakeVad,
     )
-    with TestClient(create_app(container=container)) as test_client:
+    with TestClient(create_app(container=container), client=LOCAL) as test_client:
         yield test_client
 
 

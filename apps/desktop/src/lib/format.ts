@@ -121,6 +121,15 @@ export function timerProgress(
   return Math.min(1, Math.max(0, 1 - left / timer.duration_s));
 }
 
+/** How long ago something happened: "just now", "5 min ago", "3 h ago", "2 d ago". */
+export function relativeAgo(iso: string, now: Date = new Date()): string {
+  const minutes = Math.max(0, Math.round((now.getTime() - new Date(iso).getTime()) / 60_000));
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  return hours < 48 ? `${hours} h ago` : `${Math.round(hours / 24)} d ago`;
+}
+
 /** "3d 4h", "5h 12m", "18m". */
 export function formatUptime(seconds: number): string {
   const minutes = Math.floor(seconds / 60);

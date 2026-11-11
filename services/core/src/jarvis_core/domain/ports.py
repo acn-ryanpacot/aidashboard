@@ -26,12 +26,14 @@ from jarvis_core.domain.models import (
 from jarvis_core.domain.records import (
     AlertBook,
     CalendarEvent,
+    DeviceRecord,
     DocumentHit,
     Headline,
     KnowledgeArticle,
     MemoryRecord,
     PortfolioSnapshot,
     Reminder,
+    RemoteAccessStatus,
     SearchResult,
     StoredMemory,
     SystemStatus,
@@ -223,6 +225,30 @@ class TimerRepository(Protocol):
         ...
 
 
+class DeviceTokenRepository(Protocol):
+    """Storage for remote devices and the hashes of their tokens."""
+
+    async def add(self, name: str, token_hash: str) -> DeviceRecord:
+        """Register a device."""
+        ...
+
+    async def find(self, token_hash: str) -> DeviceRecord | None:
+        """The device with this token hash, if any."""
+        ...
+
+    async def list_all(self) -> list[DeviceRecord]:
+        """Every paired device, newest first."""
+        ...
+
+    async def touch(self, device_id: int, when: datetime) -> None:
+        """Record that a device made a request."""
+        ...
+
+    async def delete(self, device_id: int) -> bool:
+        """Revoke a device."""
+        ...
+
+
 class MemoryStore(Protocol):
     """Storage for long-term memories and their embeddings."""
 
@@ -297,6 +323,14 @@ class SystemMonitor(Protocol):
 
     async def status(self) -> SystemStatus:
         """Current snapshot."""
+        ...
+
+
+class RemoteAccessProbe(Protocol):
+    """Reports how (and whether) other devices can reach this PC."""
+
+    async def status(self) -> RemoteAccessStatus:
+        """Current remote-access status (never raises)."""
         ...
 
 

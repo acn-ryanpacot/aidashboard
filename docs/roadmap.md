@@ -51,8 +51,8 @@ Also shipped in v0.3.0 from the carried-forward list: echo-aware `voice` barge-i
 
 ## Phase 6: Mobile apps
 
-- Secure remote access to the core service via Tailscale
-- Token auth for devices; OpenAPI-generated clients
+- ✅ Secure phone access via `tailscale serve`, with per-device tokens, QR pairing and an installable phone layout ([guide](guides/phone-access.md), [ADR-0016](adr/0016-phone-access.md))
+- OpenAPI-generated clients for the native mobile apps
 - Replace placeholders with real Tasks, Schedule and News widgets fed by your apps
 - ✅ First companion app: **PisoTiyempo** Portfolio widget, voice tools and briefing line ([ADR-0015](adr/0015-companion-app-feeds.md))
 - ✅ PisoTiyempo price and signal alerts spoken by Jarvis

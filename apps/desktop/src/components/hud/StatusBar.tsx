@@ -37,24 +37,31 @@ export function StatusBar() {
   const ui = useUi();
 
   return (
-    <header className="relative z-10 flex h-16 items-center justify-between px-8">
+    <header className="relative z-10 flex h-16 shrink-0 items-center justify-between px-4 sm:px-8">
       <div className="flex items-baseline gap-3">
         <span className="text-[13px] font-semibold tracking-[0.55em] text-white/90">JARVIS</span>
         <span className="font-mono text-[10px] tracking-[0.3em] text-arc-300/70">OS</span>
-        <span className="font-mono text-[10px] text-white/25">v{APP_VERSION}</span>
+        <span className="hidden font-mono text-[10px] text-white/25 sm:inline">v{APP_VERSION}</span>
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="glass-pill flex items-center gap-2.5 px-3.5 py-1.5">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <div
+          className="glass-pill flex items-center gap-2.5 px-3 py-1.5 sm:px-3.5"
+          title={link.label}
+        >
           <StatusDot tone={link.tone} />
-          <span className="font-mono text-[10px] tracking-[0.22em] text-white/60 uppercase">
+          <span className="hidden font-mono text-[10px] tracking-[0.22em] text-white/60 uppercase sm:inline">
             {link.label}
           </span>
         </div>
+        {/* Keyboard palette and layout editing are desktop affordances. */}
         <button
           type="button"
           onClick={() => ui.open('palette')}
-          className={cn(ICON_BUTTON, 'w-auto gap-2 px-3 text-white/45 hover:text-white/80')}
+          className={cn(
+            ICON_BUTTON,
+            'hidden w-auto gap-2 px-3 text-white/45 hover:text-white/80 xl:flex',
+          )}
           aria-label="Open command palette"
           title="Command palette (Ctrl+K)"
         >
@@ -67,6 +74,7 @@ export function StatusBar() {
           aria-pressed={ui.editing}
           className={cn(
             ICON_BUTTON,
+            'hidden xl:flex',
             ui.editing ? 'text-arc-300' : 'text-white/45 hover:text-white/80',
           )}
           aria-label={ui.editing ? 'Finish editing layout' : 'Edit layout'}

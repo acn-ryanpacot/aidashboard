@@ -79,6 +79,16 @@ MIGRATIONS: tuple[str, ...] = (
     );
     CREATE INDEX idx_timers_running ON timers (done, ends_at);
     """,
+    # 5 — remote devices (phones) and the SHA-256 hashes of their tokens
+    """
+    CREATE TABLE device_tokens (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        name         TEXT NOT NULL,
+        token_hash   TEXT NOT NULL UNIQUE,
+        created_at   TEXT NOT NULL,
+        last_used_at TEXT
+    );
+    """,
 )
 
 

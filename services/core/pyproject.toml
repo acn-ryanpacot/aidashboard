@@ -40,6 +40,7 @@ cpu = ["torch>=2.7", "torchaudio>=2.7"]
 [project.scripts]
 jarvis-core = "jarvis_core.__main__:main"
 jarvis-doctor = "jarvis_core.doctor:main"
+jarvis-token = "jarvis_core.tokens_cli:main"
 
 [dependency-groups]
 dev = [

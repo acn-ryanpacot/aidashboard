@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_json: bool = False
     allowed_origins: list[str] = Field(default_factory=lambda: list(DEFAULT_ALLOWED_ORIGINS))
+    web_dist: str = Field(
+        default="",
+        description="Built dashboard to serve at / for phones (empty = apps/desktop/dist).",
+    )
 
     # --- Persona ------------------------------------------------------------
     user_name: str = "Ryan"

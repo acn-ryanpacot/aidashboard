@@ -285,9 +285,53 @@ def check_pisotiyempo_alerts(settings: Settings) -> Check:
     )
 
 
+def check_web_ui(settings: Settings) -> Check:
+    """Whether the dashboard is built, so phones can load it from the core."""
+    from jarvis_core.api.app import web_ui_folder
+
+    folder = web_ui_folder(settings)
+    if folder is not None:
+        return Check("Web UI (phones)", Status.OK, f"serving {folder}")
+    return Check(
+        "Web UI (phones)",
+        Status.WARN,
+        "not built (only needed for phone access)",
+        "From the repository root: pnpm --filter @jarvis/desktop build",
+    )
+
+
+def check_tailscale(settings: Settings) -> Check:
+    """Whether Tailscale publishes Jarvis to your phone (optional)."""
+    import asyncio
+
+    from jarvis_core.adapters.system.tailscale import TailscaleProbe
+
+    status = asyncio.run(TailscaleProbe(settings.port).status())
+    if not status.installed:
+        return Check(
+            "Tailscale (phones)",
+            Status.WARN,
+            "not installed (only needed for phone access)",
+            "See docs/guides/phone-access.md",
+        )
+    if not status.running:
+        return Check(
+            "Tailscale (phones)", Status.WARN, "installed but not connected", "tailscale up"
+        )
+    if not status.public_url:
+        return Check(
+            "Tailscale (phones)",
+            Status.WARN,
+            f"connected as {status.dns_name}, but Jarvis isn't published",
+            f"tailscale serve --bg {settings.port}",
+        )
+    return Check("Tailscale (phones)", Status.OK, f"phones open {status.public_url}")
+
+
 def run_checks(settings: Settings) -> list[Check]:
     """Run every check (never raises)."""
     checks: list[Check] = [check_python(), check_data_dir(settings), check_port(settings)]
+    checks += [check_web_ui(settings), check_tailscale(settings)]
     if settings.portfolio_enabled:
         checks.append(check_pisotiyempo(settings))
         if settings.portfolio_alerts_enabled:

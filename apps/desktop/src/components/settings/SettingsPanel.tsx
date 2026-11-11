@@ -20,6 +20,7 @@ import { useAssistant, useVoiceAssistant } from '../../core/voice/hooks';
 import { cn } from '../../lib/cn';
 import { THEMES, useUi } from '../../state/uiStore';
 import { Modal } from '../ui/Modal';
+import { PhoneAccess } from './PhoneAccess';
 import { diffSettings } from './settingsDiff';
 
 type Draft = { -readonly [K in keyof RuntimeSettings]: RuntimeSettings[K] };
@@ -116,14 +117,18 @@ export function SettingsPanel() {
   const [busy, setBusy] = useState(false);
   /** Set when the user tries to close with unsaved edits. */
   const [confirmingClose, setConfirmingClose] = useState(false);
+  /** Whether this is the PC itself (only it can pair phones). */
+  const [local, setLocal] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [settings, voiceList, modelList] = await Promise.all([
+      const [settings, voiceList, modelList, session] = await Promise.all([
         coreApi.getSettings(),
         coreApi.listVoices(),
         coreApi.listModels(),
+        coreApi.getSession().catch(() => null),
       ]);
+      setLocal(session?.local ?? false);
       setSaved(settings.values);
       setDefaults(settings.defaults);
       setDraft({ ...settings.values });
@@ -519,6 +524,12 @@ export function SettingsPanel() {
               like a password.
             </p>
           </Section>
+
+          {local && (
+            <Section title="Phone access">
+              <PhoneAccess />
+            </Section>
+          )}
 
           <Section title="Companion apps">
             <Field label="PisoTiyempo feed" hint="Portfolio widget">

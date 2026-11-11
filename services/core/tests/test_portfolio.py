@@ -39,7 +39,7 @@ from jarvis_core.doctor import Status, check_pisotiyempo
 from jarvis_core.domain.errors import DataSourceUnavailableError
 from jarvis_core.domain.models import ToolCall
 from jarvis_core.domain.records import PortfolioSnapshot, StockHolding
-from tests.fakes import FakeLlm, FakePortfolio, FakeVad, FixedClock
+from tests.fakes import LOCAL, FakeLlm, FakePortfolio, FakeVad, FixedClock
 
 TUESDAY = datetime(2026, 11, 10, 18, 30, tzinfo=PSE_TIME)
 
@@ -383,7 +383,9 @@ def portfolio_source() -> FakePortfolio:
 
 @pytest.fixture
 def client(portfolio_source: FakePortfolio) -> Iterator[TestClient]:
-    with TestClient(create_app(container=make_container(portfolio_source))) as test_client:
+    with TestClient(
+        create_app(container=make_container(portfolio_source)), client=LOCAL
+    ) as test_client:
         yield test_client
 
 
@@ -398,10 +400,12 @@ def test_api_returns_holdings_and_ideas(client: TestClient) -> None:
 
 
 def test_api_reports_an_unreachable_app_and_a_disabled_integration() -> None:
-    with TestClient(create_app(container=make_container(FakePortfolio(None)))) as offline:
+    with TestClient(
+        create_app(container=make_container(FakePortfolio(None))), client=LOCAL
+    ) as offline:
         body = offline.get("/api/apps/pisotiyempo").json()
         assert body["status"] == "unavailable" and "PisoTiyempo" in body["message"]
-    with TestClient(create_app(container=make_container(None))) as disabled:
+    with TestClient(create_app(container=make_container(None)), client=LOCAL) as disabled:
         assert disabled.get("/api/apps/pisotiyempo").json()["status"] == "disabled"
 
 

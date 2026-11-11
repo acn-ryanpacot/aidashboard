@@ -70,6 +70,42 @@ class Timer:
 
 
 @dataclass(frozen=True, slots=True)
+class DeviceRecord:
+    """A device (e.g. a phone) allowed to use Jarvis remotely.
+
+    Only a hash of its token is stored; the token itself is shown once.
+
+    Attributes:
+        id: Database id.
+        name: What the user called it, e.g. "Ryan's phone".
+        created_at: When it was paired.
+        last_used_at: When it last made a request, if ever.
+    """
+
+    id: int
+    name: str
+    created_at: datetime
+    last_used_at: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RemoteAccessStatus:
+    """Whether phones can reach this PC through Tailscale.
+
+    Attributes:
+        installed: The Tailscale CLI was found.
+        running: Logged in and connected to the tailnet.
+        dns_name: This PC's MagicDNS name, e.g. ``jarvis-pc.tail1234.ts.net``.
+        public_url: The HTTPS address ``tailscale serve`` publishes for Jarvis, if any.
+    """
+
+    installed: bool
+    running: bool = False
+    dns_name: str = ""
+    public_url: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class MemoryRecord:
     """A fact Jarvis has been asked to remember long-term.
 

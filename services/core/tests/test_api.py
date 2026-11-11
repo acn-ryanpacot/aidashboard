@@ -19,6 +19,7 @@ from jarvis_core.config import Settings
 from jarvis_core.container import Container, assemble
 from jarvis_core.domain.models import ToolCall
 from tests.fakes import (
+    LOCAL,
     FakeCalendar,
     FakeEmbedder,
     FakeLlm,
@@ -61,7 +62,7 @@ def container() -> Container:
 
 @pytest.fixture
 def client(container: Container) -> Iterator[TestClient]:
-    with TestClient(create_app(container=container)) as test_client:
+    with TestClient(create_app(container=container), client=LOCAL) as test_client:
         yield test_client
 
 
@@ -185,7 +186,7 @@ def test_text_query_round_trip_with_metrics(client: TestClient) -> None:
 def test_tool_call_over_websocket_updates_widgets() -> None:
     llm = FakeLlm(rounds=[[ToolCall("add_task", {"title": "Buy milk"})], ["Added, sir."]])
     with (
-        TestClient(create_app(container=make_container(llm))) as client,
+        TestClient(create_app(container=make_container(llm)), client=LOCAL) as client,
         client.websocket_connect("/ws/voice") as ws,
     ):
         receive_until(ws, "state")

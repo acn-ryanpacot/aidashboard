@@ -7,6 +7,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Phone access via Tailscale** ([guide](docs/guides/phone-access.md), [ADR-0016](docs/adr/0016-phone-access.md)):
+  - Use Jarvis from your phone over `tailscale serve` (HTTPS, so the phone microphone works). The core stays on loopback and nothing is exposed on the LAN.
+  - **Device tokens:** stored as SHA-256 hashes (migration 5), required for every request relayed by a proxy or from another address. Sent as `Authorization: Bearer` on HTTP and as a `bearer.…` WebSocket subprotocol (close code 4401 when unpaired), so they never appear in URLs.
+  - **Settings → Phone access:** a setup checklist (Tailscale connected, published, dashboard built), **Pair a phone** with a QR code, and paired devices with last use and **Revoke**. Device management is local-only.
+  - **On the phone:** a pairing screen, a responsive one-column layout, and installable as a home-screen app (web manifest).
+  - The core serves the built dashboard at `/` (`JARVIS_WEB_DIST`). New `jarvis-token` CLI (`create`, `list`, `revoke`). `jarvis-doctor` checks Tailscale and the dashboard build.
+
 - **PisoTiyempo Portfolio widget**, the first companion-app widget ([guide](docs/guides/pisotiyempo.md), [ADR-0015](docs/adr/0015-companion-app-feeds.md)):
   - Your PSE holdings for today or the last session, with day change, value, P/L and the biggest movers.
   - When you hold nothing, three **trend-and-value ideas** with their reasons, labelled as ideas to research.

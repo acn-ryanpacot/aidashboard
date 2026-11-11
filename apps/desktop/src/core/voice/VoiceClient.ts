@@ -3,6 +3,7 @@
  *
  * @module
  */
+import { UNPAIRED_CLOSE_CODE, markUnpaired, pairingStore, voiceSubprotocols } from '../api/session';
 import {
   type ClientMessage,
   type ServerMessage,
@@ -52,17 +53,29 @@ export class VoiceClient {
   /** Open the connection (and keep re-opening it until {@link dispose}). */
   connect(): void {
     if (this.#disposed || this.#socket) return;
-    const socket = new WebSocket(this.#url);
+    // A paired phone sends its token as a subprotocol (browsers can't set headers).
+    const socket = new WebSocket(this.#url, voiceSubprotocols());
     socket.binaryType = 'arraybuffer';
     socket.onopen = () => {
       this.#attempt = 0;
       this.#handlers.onOpen();
     };
     socket.onmessage = (event: MessageEvent<string | ArrayBuffer>) => this.#receive(event.data);
-    socket.onclose = () => {
+    socket.onclose = (event: CloseEvent) => {
       this.#socket = null;
       this.#pendingSegment = null;
       this.#handlers.onClose();
+      if (event.code === UNPAIRED_CLOSE_CODE) {
+        // Retrying can't help: show the pairing screen, reconnect once paired.
+        markUnpaired();
+        const stop = pairingStore.subscribe((state) => {
+          if (!state.needsPairing) {
+            stop();
+            this.connect();
+          }
+        });
+        return;
+      }
       this.#scheduleReconnect();
     };
     this.#socket = socket;
