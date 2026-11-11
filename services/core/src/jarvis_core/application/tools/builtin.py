@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Any
 
 from jarvis_core.application.briefing import BriefingService
+from jarvis_core.application.hub import NOTIFICATIONS_TOPIC
 from jarvis_core.application.information import NewsService, ScheduleService
 from jarvis_core.application.memory import MemoryService
 from jarvis_core.application.portfolio import (
@@ -42,6 +43,7 @@ from jarvis_core.domain.models import ToolSpec
 from jarvis_core.domain.ports import (
     DocumentSearch,
     KnowledgeProvider,
+    NotificationRepository,
     Notifier,
     ReminderRepository,
     TaskRepository,
@@ -358,6 +360,41 @@ def timer_tools(
             "Stopping the timer",
             cancel_timer,
         ),
+    ]
+
+
+# ------------------------------------------------------------- notifications
+
+
+def notification_tools(
+    history: NotificationRepository, notifier: Notifier | None = None, clock: Clock = local_now
+) -> list[Tool]:
+    """``get_notifications`` ("what did I miss?")."""
+
+    async def get_notifications(_: Mapping[str, Any]) -> str:
+        unread = await history.unread()
+        if not unread:
+            return "Nothing new: every announcement has been seen."
+        now = clock()
+        items = "; ".join(
+            f"{spoken_time(n.created_at, now)} ({n.kind}): {n.text}" for n in unread[-10:]
+        )
+        await history.mark_read([n.id for n in unread])
+        if notifier is not None:
+            await notifier.data_changed(NOTIFICATIONS_TOPIC)
+        more = f" (the {len(unread)} newest of them)" if len(unread) > 10 else ""
+        return f"{len(unread)} unread announcement(s){more}, oldest first: {items}."
+
+    return [
+        Tool(
+            ToolSpec(
+                "get_notifications",
+                "Read out announcements the user hasn't seen yet (reminders, timers, stock "
+                "alerts, briefings). Use for 'what did I miss?'.",
+            ),
+            "Checking what you missed",
+            get_notifications,
+        )
     ]
 
 

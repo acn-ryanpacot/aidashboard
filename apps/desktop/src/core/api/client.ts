@@ -33,6 +33,22 @@ export interface Timer {
   readonly created_at: string;
 }
 
+/** Something Jarvis announced (`GET /api/notifications`). */
+export interface NotificationItem {
+  readonly id: number;
+  /** `reminder`, `timer`, `alert`, `briefing`… */
+  readonly kind: string;
+  readonly text: string;
+  readonly created_at: string;
+  readonly read: boolean;
+}
+
+/** The notifications center: newest first, plus the unread count. */
+export interface NotificationsResponse {
+  readonly unread: number;
+  readonly items: readonly NotificationItem[];
+}
+
 /** A long-term memory (`GET /api/memories`). */
 export interface Memory {
   readonly id: number;
@@ -270,6 +286,15 @@ export const coreApi = {
   startTimer: (duration: string, label = '') =>
     request<Timer>('/api/timers', { method: 'POST', body: JSON.stringify({ duration, label }) }),
   cancelTimer: (id: number) => request<undefined>(`/api/timers/${id}`, { method: 'DELETE' }),
+  listNotifications: (limit = 50) =>
+    request<NotificationsResponse>(`/api/notifications?limit=${limit}`),
+  /** Mark `ids` (or, without them, everything) as read. */
+  markNotificationsRead: (ids?: readonly number[]) =>
+    request<NotificationsResponse>('/api/notifications/read', {
+      method: 'POST',
+      body: JSON.stringify(ids ? { ids } : {}),
+    }),
+  clearNotifications: () => request<undefined>('/api/notifications', { method: 'DELETE' }),
   listMemories: () => request<Memory[]>('/api/memories'),
   deleteMemory: (id: number) => request<undefined>(`/api/memories/${id}`, { method: 'DELETE' }),
   resetVoiceprint: () => request<undefined>('/api/voiceprint', { method: 'DELETE' }),

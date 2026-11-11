@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 import numpy as np
@@ -14,6 +14,7 @@ from jarvis_core.adapters.persistence.database import Database, from_db_time, to
 from jarvis_core.domain.records import (
     DeviceRecord,
     MemoryRecord,
+    NotificationRecord,
     Reminder,
     StoredMemory,
     Task,
@@ -215,6 +216,78 @@ class SqliteTimerRepository:
         return await self._db.run(
             lambda c: c.execute("DELETE FROM timers WHERE id = ?", (timer_id,)).rowcount > 0
         )
+
+
+# ------------------------------------------------------------- notifications
+
+#: The notifications center keeps this much history.
+NOTIFICATION_RETENTION = timedelta(days=30)
+NOTIFICATION_MAX_ROWS = 500
+
+
+def _notification(row: sqlite3.Row) -> NotificationRecord:
+    return NotificationRecord(
+        id=row["id"],
+        kind=row["kind"],
+        text=row["text"],
+        created_at=_required_time(row["created_at"]),
+        read=bool(row["read"]),
+    )
+
+
+class SqliteNotificationRepository:
+    """Implements :class:`~jarvis_core.domain.ports.NotificationRepository`.
+
+    Keeps the last 30 days (at most 500 entries); older ones are pruned on insert.
+    """
+
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    async def add(self, kind: str, text: str) -> NotificationRecord:
+        """Record an announcement (old entries are pruned)."""
+        now = utc_now()
+
+        def op(conn: sqlite3.Connection) -> NotificationRecord:
+            row = conn.execute(
+                "INSERT INTO notifications (kind, text, created_at) VALUES (?, ?, ?) RETURNING *",
+                (kind, text.strip(), to_db_time(now)),
+            ).fetchone()
+            conn.execute(
+                "DELETE FROM notifications WHERE created_at < ? OR id <= ?",
+                (to_db_time(now - NOTIFICATION_RETENTION), row["id"] - NOTIFICATION_MAX_ROWS),
+            )
+            return _notification(row)
+
+        return await self._db.run(op)
+
+    async def recent(self, limit: int = 50) -> list[NotificationRecord]:
+        """Newest first."""
+        sql = "SELECT * FROM notifications ORDER BY created_at DESC, id DESC LIMIT ?"
+        return await self._db.run(lambda c: [_notification(r) for r in c.execute(sql, (limit,))])
+
+    async def unread(self) -> list[NotificationRecord]:
+        """Not yet seen, oldest first."""
+        sql = "SELECT * FROM notifications WHERE read = 0 ORDER BY created_at, id"
+        return await self._db.run(lambda c: [_notification(r) for r in c.execute(sql)])
+
+    async def mark_read(self, ids: Sequence[int] | None = None) -> int:
+        """Mark ``ids`` (or everything) as read; returns how many changed."""
+
+        def op(conn: sqlite3.Connection) -> int:
+            if ids is None:
+                return conn.execute("UPDATE notifications SET read = 1 WHERE read = 0").rowcount
+            marks = ",".join("?" * len(ids))
+            if not marks:
+                return 0
+            sql = f"UPDATE notifications SET read = 1 WHERE read = 0 AND id IN ({marks})"
+            return conn.execute(sql, tuple(ids)).rowcount
+
+        return await self._db.run(op)
+
+    async def clear(self) -> None:
+        """Delete the whole history."""
+        await self._db.run(lambda c: c.execute("DELETE FROM notifications"))
 
 
 # ------------------------------------------------------------------- devices

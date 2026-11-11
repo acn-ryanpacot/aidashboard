@@ -89,6 +89,17 @@ MIGRATIONS: tuple[str, ...] = (
         last_used_at TEXT
     );
     """,
+    # 6 — history of announcements for the notifications center
+    """
+    CREATE TABLE notifications (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        kind       TEXT    NOT NULL,
+        text       TEXT    NOT NULL,
+        created_at TEXT    NOT NULL,
+        read       INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX idx_notifications_created ON notifications (created_at);
+    """,
 )
 
 

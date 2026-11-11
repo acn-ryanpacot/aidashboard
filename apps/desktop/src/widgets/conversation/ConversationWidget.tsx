@@ -3,18 +3,9 @@ import { useEffect, useRef } from 'react';
 import { DEFAULT_USER_NAME } from '../../config';
 import { useAssistant } from '../../core/voice/hooks';
 import { cn } from '../../lib/cn';
+import { noticeLabel } from '../../lib/notices';
 
 const SPEAKER_LABEL: Partial<Record<string, string>> = { system: 'System' };
-
-/** Transcript label for an announcement, by the kind the core sent. */
-const NOTICE_LABEL: Partial<Record<string, string>> = {
-  reminder: 'Reminder',
-  timer: 'Timer',
-  alert: 'Stock alert',
-  briefing: 'Briefing',
-};
-
-const noticeLabel = (kind: string | undefined) => (kind && NOTICE_LABEL[kind]) ?? 'Notice';
 
 /** Scrolling transcript of the current session. */
 export function ConversationWidget() {

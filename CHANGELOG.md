@@ -7,6 +7,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Notifications center**:
+  - Every announcement (timers, reminders, stock alerts, briefings) is recorded, including ones made while no window was open (migration 6; last 30 days, at most 500 entries).
+  - A **bell** in the top bar with an unread badge opens a drawer grouped by day. Opening it marks everything read, and what was new stays highlighted. Also in the command palette.
+  - *"What did I miss?"* reads the unread ones aloud (`get_notifications` tool, new `notifications` routing group).
+  - REST: `GET /api/notifications`, `POST /api/notifications/read`, `DELETE /api/notifications`.
+
 - **Phone access via Tailscale** ([guide](docs/guides/phone-access.md), [ADR-0016](docs/adr/0016-phone-access.md)):
   - Use Jarvis from your phone over `tailscale serve` (HTTPS, so the phone microphone works). The core stays on loopback and nothing is exposed on the LAN.
   - **Device tokens:** stored as SHA-256 hashes (migration 5), required for every request relayed by a proxy or from another address. Sent as `Authorization: Bearer` on HTTP and as a `bearer.…` WebSocket subprotocol (close code 4401 when unpaired), so they never appear in URLs.

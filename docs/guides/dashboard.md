@@ -38,6 +38,14 @@ Choose one in **Settings → Appearance** or from the palette. Each theme recolo
 - **Stark Gold**: red and gold
 - **Stealth**: monochrome and low-glare
 
+## Notifications
+
+The **bell** in the top bar keeps everything Jarvis announced: timers, reminders, stock alerts and briefings. A badge counts what you haven't seen. That includes announcements made while no Jarvis window was open, which used to be lost.
+
+- Click the bell (or **Ctrl+K → Notifications**) to open the list, grouped by day. Opening it marks everything read; what was new keeps a blue dot until you close it.
+- Ask *"What did I miss?"*: Jarvis reads out the unread ones and marks them read.
+- **Clear history** empties the list. Jarvis keeps the last 30 days (at most 500 entries).
+
 ## Focus mode
 
 The **focus icon** hides every widget and leaves only the core, captions and command bar. Reminder and alert chimes are muted, but they still appear in the transcript and are still spoken. Timers always ring.

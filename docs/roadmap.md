@@ -47,7 +47,7 @@ Also shipped in v0.3.0 from the carried-forward list: echo-aware `voice` barge-i
 
 - Core service bundled as a Tauri sidecar (PyInstaller), so one installer does everything
 - System tray, autostart, always-on-top mini-orb
-- Notifications center
+- ✅ Notifications center: a bell with an unread count, history of every announcement, and "what did I miss?"
 
 ## Phase 6: Mobile apps
 
@@ -60,4 +60,4 @@ Also shipped in v0.3.0 from the carried-forward list: echo-aware `voice` barge-i
 
 ## Feature ideas backlog
 
-~~Timers~~ (done) · notifications center · unit/currency conversion · clipboard summarizer · daily voice journal · habit tracker · Home Assistant control · webcam presence greeting (MediaPipe) · offline mode indicator · multi-language support
+~~Timers~~ (done) · ~~notifications center~~ (done) · unit/currency conversion · clipboard summarizer · daily voice journal · habit tracker · Home Assistant control · webcam presence greeting (MediaPipe) · offline mode indicator · multi-language support

@@ -23,6 +23,7 @@ from jarvis_core.adapters.persistence.database import Database
 from jarvis_core.adapters.persistence.repositories import (
     SqliteDeviceTokenRepository,
     SqliteMemoryStore,
+    SqliteNotificationRepository,
     SqlitePreferenceStore,
     SqliteReminderRepository,
     SqliteTaskRepository,
@@ -57,6 +58,7 @@ from jarvis_core.domain.ports import (
     KnowledgeProvider,
     LanguageModel,
     NewsProvider,
+    NotificationRepository,
     PortfolioSource,
     PreferenceStore,
     ReminderRepository,
@@ -129,6 +131,7 @@ class Container:
     tasks: TaskRepository
     reminders: ReminderRepository
     timers: TimerRepository
+    notifications: NotificationRepository
     devices: DeviceAccess
     memory: MemoryService | None
     stt: SpeechToText | None
@@ -288,7 +291,8 @@ def assemble(
         adapters: Extra objects to warm up / close with the container.
     """
     s = settings
-    hub = SessionHub()
+    notifications = SqliteNotificationRepository(database)
+    hub = SessionHub(notifications)
     preferences = SqlitePreferenceStore(database)
     runtime = SettingsService(runtime_defaults(s), preferences)
 
@@ -342,6 +346,7 @@ def assemble(
         tools.extend(builtin.task_tools(tasks, hub))
         tools.extend(builtin.reminder_tools(reminders, hub))
         tools.extend(builtin.timer_tools(timers, hub))
+        tools.extend(builtin.notification_tools(notifications, hub))
         if memory is not None:
             tools.extend(builtin.memory_tools(memory, hub))
         if weather_service is not None:
@@ -443,6 +448,7 @@ def assemble(
         tasks=tasks,
         reminders=reminders,
         timers=timers,
+        notifications=notifications,
         devices=DeviceAccess(SqliteDeviceTokenRepository(database)),
         memory=memory,
         stt=stt,

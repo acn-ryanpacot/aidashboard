@@ -77,6 +77,13 @@ export function CommandPalette() {
         },
       },
       {
+        id: 'notifications',
+        title: 'Notifications…',
+        hint: 'Everything Jarvis announced',
+        keywords: 'missed alerts timers reminders history bell',
+        run: () => ui.open('notifications'),
+      },
+      {
         id: 'settings',
         title: 'Settings…',
         keywords: 'preferences voice persona model',

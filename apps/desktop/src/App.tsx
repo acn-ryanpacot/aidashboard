@@ -7,6 +7,7 @@ import { CommandBar } from './components/hud/CommandBar';
 import { CommandPalette } from './components/hud/CommandPalette';
 import { EngageOverlay } from './components/hud/EngageOverlay';
 import { EnrollmentOverlay } from './components/hud/EnrollmentOverlay';
+import { NotificationsPanel } from './components/hud/NotificationsPanel';
 import { Orb } from './components/hud/Orb';
 import { PairingScreen } from './components/hud/PairingScreen';
 import { StatusBar } from './components/hud/StatusBar';
@@ -119,6 +120,7 @@ function Hud() {
       <AmbientScreen />
       <CommandPalette />
       <SettingsPanel />
+      <NotificationsPanel />
       <WidgetGallery />
       <EngageOverlay />
       <EnrollmentOverlay />

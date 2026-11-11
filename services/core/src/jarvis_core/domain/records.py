@@ -70,6 +70,25 @@ class Timer:
 
 
 @dataclass(frozen=True, slots=True)
+class NotificationRecord:
+    """Something Jarvis announced, kept for the notifications center.
+
+    Attributes:
+        id: Database id.
+        kind: What announced it: ``reminder``, ``timer``, ``alert``, ``briefing``…
+        text: The announcement as spoken.
+        created_at: When it was announced.
+        read: Whether the user has seen it in the notifications center.
+    """
+
+    id: int
+    kind: str
+    text: str
+    created_at: datetime
+    read: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class DeviceRecord:
     """A device (e.g. a phone) allowed to use Jarvis remotely.
 

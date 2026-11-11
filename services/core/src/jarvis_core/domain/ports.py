@@ -31,6 +31,7 @@ from jarvis_core.domain.records import (
     Headline,
     KnowledgeArticle,
     MemoryRecord,
+    NotificationRecord,
     PortfolioSnapshot,
     Reminder,
     RemoteAccessStatus,
@@ -222,6 +223,30 @@ class TimerRepository(Protocol):
 
     async def delete(self, timer_id: int) -> bool:
         """Cancel a timer."""
+        ...
+
+
+class NotificationRepository(Protocol):
+    """History of announcements for the notifications center."""
+
+    async def add(self, kind: str, text: str) -> NotificationRecord:
+        """Record an announcement (old entries are pruned)."""
+        ...
+
+    async def recent(self, limit: int = 50) -> list[NotificationRecord]:
+        """Newest first."""
+        ...
+
+    async def unread(self) -> list[NotificationRecord]:
+        """Not yet seen, oldest first."""
+        ...
+
+    async def mark_read(self, ids: Sequence[int] | None = None) -> int:
+        """Mark ``ids`` (or everything) as read; returns how many changed."""
+        ...
+
+    async def clear(self) -> None:
+        """Delete the whole history."""
         ...
 
 

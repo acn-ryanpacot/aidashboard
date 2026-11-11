@@ -1,4 +1,5 @@
 import {
+  Bell,
   Command,
   Focus,
   LayoutDashboard,
@@ -10,6 +11,8 @@ import {
 } from 'lucide-react';
 
 import { APP_VERSION } from '../../config';
+import { coreApi } from '../../core/api/client';
+import { useCoreData } from '../../core/api/useCoreData';
 import { useAssistant, useVoiceAssistant } from '../../core/voice/hooks';
 import { cn } from '../../lib/cn';
 import { useUi } from '../../state/uiStore';
@@ -35,6 +38,7 @@ export function StatusBar() {
   const soundsEnabled = useAssistant((s) => s.soundsEnabled);
   const link = CONNECTION[connection] ?? { tone: 'muted' as Tone, label: connection };
   const ui = useUi();
+  const unread = useCoreData(['notifications'], coreApi.listNotifications).data?.unread ?? 0;
 
   return (
     <header className="relative z-10 flex h-16 shrink-0 items-center justify-between px-4 sm:px-8">
@@ -94,6 +98,20 @@ export function StatusBar() {
           title={ui.focus ? 'Leave focus mode' : 'Focus mode: hide widgets, quiet chimes'}
         >
           <Focus className="size-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => ui.open('notifications')}
+          className={cn(ICON_BUTTON, 'relative text-white/45 hover:text-white/80')}
+          aria-label={unread ? `Notifications (${unread} unread)` : 'Notifications'}
+          title="Notifications"
+        >
+          <Bell className="size-4" />
+          {unread > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-arc-400 px-1 font-mono text-[9px] font-semibold text-void">
+              {unread > 99 ? '99+' : unread}
+            </span>
+          )}
         </button>
         <button
           type="button"

@@ -107,6 +107,18 @@ BUILTIN_GROUPS: tuple[ToolGroup, ...] = (
         ),
     ),
     ToolGroup(
+        "notifications",
+        "Announcements the user missed: reminders, timers, alerts and briefings.",
+        ("get_notifications",),
+        (
+            r"\bwhat did i miss\b",
+            r"\bdid i miss\b",
+            r"\bnotifications?\b",
+            r"\banything new\b",
+            r"\bwhile i was (away|out|gone)\b",
+        ),
+    ),
+    ToolGroup(
         "memory",
         "Long-term facts about the user: remembering, recalling or forgetting them.",
         ("remember", "recall", "forget"),

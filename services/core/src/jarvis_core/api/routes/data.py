@@ -1,4 +1,6 @@
-"""REST endpoints for the data Jarvis owns: tasks, reminders, timers, memories, voice ID.
+"""REST endpoints for the data Jarvis owns.
+
+Tasks, reminders, timers, notifications, memories and voice ID.
 
 These are what dashboard widgets read and — later — what the mobile apps sync
 with. Every mutation broadcasts ``data_changed`` so all open UIs refresh.
@@ -8,12 +10,13 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
+from jarvis_core.application.hub import NOTIFICATIONS_TOPIC
 from jarvis_core.application.timers import MAX_ACTIVE_TIMERS, end_time, parse_timer_request
 from jarvis_core.container import Container
-from jarvis_core.domain.records import MemoryRecord, Reminder, Task, Timer
+from jarvis_core.domain.records import MemoryRecord, NotificationRecord, Reminder, Task, Timer
 
 router = APIRouter(prefix="/api", tags=["data"])
 
@@ -115,6 +118,36 @@ class TimerIn(BaseModel):
 
     duration: str = Field(min_length=1, max_length=120)
     label: str = Field(default="", max_length=60)
+
+
+class NotificationOut(BaseModel):
+    """Something Jarvis announced."""
+
+    id: int
+    kind: str
+    text: str
+    created_at: datetime
+    read: bool
+
+    @classmethod
+    def of(cls, item: NotificationRecord) -> NotificationOut:
+        """Build from the domain record."""
+        return cls(
+            id=item.id, kind=item.kind, text=item.text, created_at=item.created_at, read=item.read
+        )
+
+
+class NotificationsOut(BaseModel):
+    """The notifications center: recent announcements and how many are unread."""
+
+    unread: int
+    items: list[NotificationOut]
+
+
+class MarkReadIn(BaseModel):
+    """Which notifications to mark read (``ids`` omitted = all)."""
+
+    ids: list[int] | None = None
 
 
 class MemoryOut(BaseModel):
@@ -232,6 +265,40 @@ async def delete_timer(request: Request, timer_id: int) -> None:
     if not await container.timers.delete(timer_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Timer not found")
     await container.hub.data_changed("timers")
+
+
+# ------------------------------------------------------------ notifications
+
+
+async def _notifications(container: Container, limit: int = 50) -> NotificationsOut:
+    history = container.notifications
+    items, unread = await history.recent(limit), await history.unread()
+    return NotificationsOut(unread=len(unread), items=[NotificationOut.of(n) for n in items])
+
+
+@router.get("/notifications", response_model=NotificationsOut)
+async def list_notifications(
+    request: Request, limit: int = Query(default=50, ge=1, le=200)
+) -> NotificationsOut:
+    """Recent announcements (newest first) and the unread count."""
+    return await _notifications(_container(request), limit)
+
+
+@router.post("/notifications/read", response_model=NotificationsOut)
+async def mark_notifications_read(request: Request, body: MarkReadIn) -> NotificationsOut:
+    """Mark some (or all) notifications read."""
+    container = _container(request)
+    if await container.notifications.mark_read(body.ids):
+        await container.hub.data_changed(NOTIFICATIONS_TOPIC)
+    return await _notifications(container)
+
+
+@router.delete("/notifications", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_notifications(request: Request) -> None:
+    """Delete the notification history."""
+    container = _container(request)
+    await container.notifications.clear()
+    await container.hub.data_changed(NOTIFICATIONS_TOPIC)
 
 
 # ----------------------------------------------------------------- memories

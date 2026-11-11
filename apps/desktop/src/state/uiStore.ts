@@ -16,7 +16,7 @@ export const THEMES: readonly { id: Theme; label: string; description: string }[
 ];
 
 /** Which modal surface is showing (only one at a time). */
-export type Overlay = 'none' | 'palette' | 'settings' | 'gallery';
+export type Overlay = 'none' | 'palette' | 'settings' | 'gallery' | 'notifications';
 
 interface Appearance {
   readonly theme: Theme;
