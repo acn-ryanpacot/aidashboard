@@ -14,7 +14,15 @@ from fastapi.staticfiles import StaticFiles
 import jarvis_core
 from jarvis_core import __version__
 from jarvis_core.api.auth import require_access
-from jarvis_core.api.routes import apps, dashboard, data, devices, health, voice_ws
+from jarvis_core.api.routes import (
+    apps,
+    dashboard,
+    data,
+    devices,
+    health,
+    knowledge,
+    voice_ws,
+)
 from jarvis_core.config import Settings
 from jarvis_core.container import Container, build_container_async
 
@@ -84,6 +92,7 @@ def create_app(settings: Settings | None = None, *, container: Container | None 
         data.router,
         dashboard.router,
         apps.router,
+        knowledge.router,
         devices.session_router,
         devices.router,
     ):

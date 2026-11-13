@@ -30,6 +30,19 @@ _HUMOUR = {
 }
 
 
+DEFAULT_ABILITIES = "tasks, reminders, memory, weather and looking things up"
+
+
+def describe_abilities(*, web: bool, documents: bool) -> str:
+    """The tool summary used in the system prompt, e.g. with web search and documents."""
+    parts = ["tasks", "reminders", "timers", "memory", "weather", "encyclopedia look-ups"]
+    if web:
+        parts.append("searching the internet")
+    if documents:
+        parts.append("reading the user's own documents (resume, bills, PDFs and spreadsheets)")
+    return ", ".join(parts[:-1]) + " and " + parts[-1]
+
+
 def _part_of_day(hour: int) -> str:
     """Coarse time of day: keeps the prompt stable for hours at a time."""
     if 5 <= hour < 12:
@@ -57,12 +70,15 @@ class Persona:
         user_name: Name used to address the user.
         greeting: Fixed phrase spoken after the wake word.
         style: Personality traits.
+        abilities: What the tools cover, for the prompt
+            (see :func:`describe_abilities`).
     """
 
     assistant_name: str
     user_name: str
     greeting: str
     style: PersonaStyle = PersonaStyle()
+    abilities: str = DEFAULT_ABILITIES
 
     def system_message(
         self,
@@ -101,17 +117,18 @@ class Persona:
         ]
         if tools_available:
             tool_lines = [
-                "- You have tools for tasks, reminders, memory, weather and looking things up. "
+                f"- You have tools for {self.abilities}. "
                 "Use a tool only when the request needs it, and never invent a tool's result.",
                 "- When a tool returns an error, explain the problem briefly or ask a question.",
                 "- Never claim abilities beyond your tools.",
             ]
         elif tools_on_request:
             tool_lines = [
-                "- Tools for tasks, reminders, memory, weather and look-ups are attached only "
-                "when a request needs them, and none are attached now. Answer from your own "
-                "knowledge. If the user wanted an action, say you didn't catch it and suggest a "
-                "phrasing such as 'add milk to my tasks' or 'remind me to call Sam at 5'."
+                f"- Tools for {self.abilities} are attached only when a request needs them, "
+                "and none are attached now. Answer from your own knowledge. If the user wanted "
+                "an action or a look-up, say you didn't catch it and suggest a phrasing such "
+                "as 'search the web for ...', 'check my documents for ...' or 'remind me to "
+                "call Sam at 5'. Never say you can't do something listed here."
             ]
         else:
             tool_lines = [

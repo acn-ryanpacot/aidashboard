@@ -9,6 +9,7 @@ from typing import Any
 
 import structlog
 
+from jarvis_core.domain.errors import JarvisError
 from jarvis_core.domain.models import ToolCall, ToolSpec
 
 log = structlog.get_logger(__name__)
@@ -97,6 +98,11 @@ class ToolRegistry:
             return result
         except ToolError as exc:
             log.info("tool_rejected", tool=call.name, reason=str(exc))
+            return f"Error: {exc}"
+        except JarvisError as exc:
+            # An expected failure of a data source ("web search is unavailable"):
+            # its message tells the model, and so the user, what's wrong.
+            log.info("tool_failed", tool=call.name, reason=str(exc))
             return f"Error: {exc}"
         except TimeoutError:
             log.warning("tool_timed_out", tool=call.name)

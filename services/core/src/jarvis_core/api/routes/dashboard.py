@@ -13,6 +13,7 @@ from fastapi import APIRouter, Body, HTTPException, Query, Request, status
 from fastapi import Path as PathParam
 from pydantic import BaseModel
 
+from jarvis_core.api.auth import request_is_local
 from jarvis_core.application.runtime_settings import RuntimeSettings, SettingsError
 from jarvis_core.container import Container
 from jarvis_core.domain.errors import JarvisError
@@ -70,8 +71,21 @@ async def get_settings(request: Request) -> SettingsResponse:
 async def update_settings(
     request: Request, patch: dict[str, Any] = Body(..., examples=[{"tts_voice": "bm_lewis"}])
 ) -> SettingsResponse:
-    """Change some settings; they apply immediately, no restart needed."""
+    """Change some settings; they apply immediately, no restart needed.
+
+    The documents folder can only be changed on the PC itself: a paired phone
+    must not be able to point Jarvis at another folder of yours.
+    """
     container = _container(request)
+    if (
+        "documents_dir" in patch
+        and str(patch["documents_dir"]).strip().strip('"').strip()
+        != container.runtime.current.documents_dir
+        and not request_is_local(request)
+    ):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Change the documents folder on the PC itself."
+        )
     try:
         await container.runtime.update(patch)
     except SettingsError as exc:

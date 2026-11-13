@@ -11,7 +11,7 @@ application layer runs them in worker threads so the event loop stays free.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from datetime import datetime
 from typing import Any, Protocol, runtime_checkable
 
@@ -28,6 +28,7 @@ from jarvis_core.domain.records import (
     CalendarEvent,
     DeviceRecord,
     DocumentHit,
+    DocumentsStatus,
     Headline,
     KnowledgeArticle,
     MemoryRecord,
@@ -36,6 +37,7 @@ from jarvis_core.domain.records import (
     Reminder,
     RemoteAccessStatus,
     SearchResult,
+    SheetTable,
     StoredMemory,
     SystemStatus,
     Task,
@@ -322,6 +324,48 @@ class DocumentSearch(Protocol):
 
     async def search(self, query: str, limit: int = 4) -> list[DocumentHit]:
         """Best-matching passages for ``query``."""
+        ...
+
+
+class PageReader(Protocol):
+    """Fetches a public web page and returns its readable text."""
+
+    async def read(self, url: str) -> str:
+        """Main text of the page at ``url`` (raises on failure)."""
+        ...
+
+
+@runtime_checkable
+class DocumentLibrary(DocumentSearch, Protocol):
+    """The user's documents folder: search, spreadsheets and index status."""
+
+    @property
+    def folder(self) -> str:
+        """The configured folder, or ``""`` when none is set."""
+        ...
+
+    def set_folder(self, folder: str) -> None:
+        """Switch to another folder (re-indexes in the background)."""
+        ...
+
+    async def spreadsheets(self) -> list[str]:
+        """Relative paths of every spreadsheet in the folder."""
+        ...
+
+    async def tables(self, path: str) -> list[SheetTable]:
+        """The sheets of the spreadsheet at relative ``path``."""
+        ...
+
+    async def status(self) -> DocumentsStatus:
+        """Folder, files and indexing progress."""
+        ...
+
+    def reindex(self) -> None:
+        """Re-read every file in the background, even unchanged ones."""
+        ...
+
+    def on_change(self, listener: Callable[[], Awaitable[None]]) -> None:
+        """Call ``listener`` whenever indexing starts or finishes."""
         ...
 
 

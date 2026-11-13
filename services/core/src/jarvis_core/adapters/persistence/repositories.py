@@ -405,6 +405,11 @@ class SqliteDocumentChunkStore:
         sql = "SELECT path, MAX(mtime) AS mtime FROM document_chunks GROUP BY path"
         return await self._db.run(lambda c: {r["path"]: r["mtime"] for r in c.execute(sql)})
 
+    async def chunk_counts(self) -> dict[str, int]:
+        """Map of indexed file path → number of stored passages."""
+        sql = "SELECT path, COUNT(*) AS n FROM document_chunks GROUP BY path"
+        return await self._db.run(lambda c: {r["path"]: r["n"] for r in c.execute(sql)})
+
     async def replace_file(
         self, path: str, mtime: float, chunks: Sequence[tuple[str, Sequence[float]]]
     ) -> None:

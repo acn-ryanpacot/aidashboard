@@ -7,6 +7,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Web search works out of the box** ([guide](docs/guides/web-search.md), [ADR-0017](docs/adr/0017-knowledge-sources.md)):
+  - DuckDuckGo with no setup, or your own **SearXNG** first when `JARVIS_SEARXNG_URL` is set (`JARVIS_WEB_SEARCH=auto`).
+  - A ready SearXNG setup in `services/searxng` (`docker compose up -d`, loopback only).
+  - Jarvis reads the relevant parts of the top two result pages and names the sites.
+  - E-mails and long ID-like numbers are stripped from queries, and pages on your own network are never fetched.
+  - When DuckDuckGo shows a captcha, Jarvis backs off for five minutes.
+- **Your documents folder** (Settings → **Knowledge**):
+  - Jarvis now reads **PDF, Word (`.docx`), Excel (`.xlsx`) and CSV** files as well as notes, and answers from them, naming the file.
+  - New `read_spreadsheet` tool: exact totals, largest, smallest and averages per column, with an optional row filter ("how much do I owe in total?", "…on the BDO card?").
+  - New `list_documents` tool.
+  - The folder is a live setting (PC only). Settings shows indexing progress and unreadable files with the reason (e.g. scanned PDFs), and has a **Re-index now** button. New files are picked up every five minutes.
+  - `GET /api/knowledge`, `POST /api/documents/reindex`.
+- The system prompt lists the abilities Jarvis really has, so he no longer says he can't search the web or read your files.
+- `jarvis-doctor` checks web search and the documents folder.
+
 - **Notifications center**:
   - Every announcement (timers, reminders, stock alerts, briefings) is recorded, including ones made while no window was open (migration 6; last 30 days, at most 500 entries).
   - A **bell** in the top bar with an unread badge opens a drawer grouped by day. Opening it marks everything read, and what was new stays highlighted. Also in the command palette.
@@ -41,6 +56,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- When a data source fails (e.g. web search is down), Jarvis now hears the reason instead of "the tool failed unexpectedly", so he can say what's wrong.
 - The Settings drawer no longer silently discards unsaved changes when closed. It asks whether to save or discard.
 - Desktop shell: `app.path()` failed to compile (missing `tauri::Manager` import in `core_service`).
 - Docs: install pnpm with `npm install -g` (no admin, works on Node 25+); Smart App Control blocking uv's Python on Windows 11.

@@ -75,6 +75,10 @@ def test_every_builtin_tool_belongs_to_exactly_one_group() -> None:
         ("Any news about the Mars mission?", {"get_headlines"}),
         ("Search the web for the latest Mars mission", {"web_search"}),
         ("What did I write in my notes about the budget?", {"search_documents"}),
+        ("Search the internet for the PSEi closing level", {"web_search"}),
+        ("How much do I owe in total?", {"search_documents"}),
+        ("Which companies are on my resume?", {"search_documents"}),
+        ("What's my Meralco bill this month?", {"search_documents"}),
     ],
 )
 async def test_keyword_routing(request_text: str, expected: set[str]) -> None:

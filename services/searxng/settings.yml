@@ -1,0 +1,25 @@
+# SearXNG settings for Jarvis. Everything not listed here keeps SearXNG's defaults.
+# Reference: https://docs.searxng.org/admin/settings/index.html
+use_default_settings: true
+
+general:
+  instance_name: "Jarvis search"
+
+search:
+  safe_search: 1
+  autocomplete: ""
+  # Jarvis reads results as JSON.
+  formats:
+    - html
+    - json
+
+server:
+  # Overridden by SEARXNG_SECRET in compose.yaml.
+  secret_key: "jarvis-loopback-only-change-me"
+  # Only you use this instance, so no rate limiter (it would need Valkey).
+  limiter: false
+  image_proxy: false
+  method: "GET"
+
+outgoing:
+  request_timeout: 4.0

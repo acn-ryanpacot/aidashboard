@@ -60,4 +60,4 @@ Also shipped in v0.3.0 from the carried-forward list: echo-aware `voice` barge-i
 
 ## Feature ideas backlog
 
-~~Timers~~ (done) · ~~notifications center~~ (done) · unit/currency conversion · clipboard summarizer · daily voice journal · habit tracker · Home Assistant control · webcam presence greeting (MediaPipe) · offline mode indicator · multi-language support
+~~Timers~~ (done) · ~~notifications center~~ (done) · ~~web search without setup~~ (done) · ~~PDF/Word/Excel documents~~ (done) · OCR for scanned documents · unit/currency conversion · clipboard summarizer · daily voice journal · habit tracker · Home Assistant control · webcam presence greeting (MediaPipe) · offline mode indicator · multi-language support

@@ -21,6 +21,8 @@ class SearxngSearchProvider:
         client: Inject a custom :class:`httpx.AsyncClient` (used by tests).
     """
 
+    label = "SearXNG"
+
     def __init__(self, base_url: str, client: httpx.AsyncClient | None = None) -> None:
         self._client = client or httpx.AsyncClient(base_url=base_url, timeout=12.0)
 

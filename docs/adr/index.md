@@ -18,6 +18,9 @@ Each ADR captures one significant decision: its context, the choice, and the con
 | 0012 | [Live settings: env defaults + stored overrides](0012-runtime-settings.md) | Accepted |
 | 0013 | [Echo-aware voice barge-in on the client](0013-echo-aware-barge-in.md) | Accepted |
 | 0014 | [The desktop app launches the core service](0014-desktop-launches-core.md) | Accepted |
+| 0015 | [Companion-app feeds (PisoTiyempo)](0015-companion-app-feeds.md) | Accepted |
+| 0016 | [Phone access through `tailscale serve` with device tokens](0016-phone-access.md) | Accepted |
+| 0017 | [Web search without setup, and a documents folder Jarvis can read](0017-knowledge-sources.md) | Accepted |
 
 ## Template
 

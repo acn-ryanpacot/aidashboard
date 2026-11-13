@@ -56,6 +56,14 @@ class RuntimeSettings(BaseModel):
     calendar_urls: list[str] = Field(max_length=10)
     # Companion apps
     portfolio_feed_url: str = Field(default="", max_length=200)
+    # Knowledge
+    documents_dir: str = Field(default="", max_length=400)
+
+    @field_validator("documents_dir")
+    @classmethod
+    def _check_folder(cls, value: str) -> str:
+        # Windows "Copy as path" wraps the path in quotes.
+        return value.strip().strip('"').strip()
 
     @field_validator("portfolio_feed_url")
     @classmethod

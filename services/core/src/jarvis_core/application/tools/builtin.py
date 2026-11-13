@@ -6,6 +6,7 @@ Results are short, factual strings — the model turns them into speech.
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Callable, Mapping
 from datetime import datetime
 from typing import Any
@@ -20,6 +21,7 @@ from jarvis_core.application.portfolio import (
     describe_ideas,
     describe_portfolio,
 )
+from jarvis_core.application.spreadsheets import describe_tables, match_file
 from jarvis_core.application.stock_alerts import StockAlertService, describe_rule
 from jarvis_core.application.timers import (
     MAX_ACTIVE_TIMERS,
@@ -38,13 +40,16 @@ from jarvis_core.application.tools.registry import (
     text_arg,
 )
 from jarvis_core.application.tools.timeparse import resolve_due_time, spoken_time
+from jarvis_core.application.web import describe_results, read_top_pages, redact_query
 from jarvis_core.domain.errors import DataSourceUnavailableError
 from jarvis_core.domain.models import ToolSpec
 from jarvis_core.domain.ports import (
+    DocumentLibrary,
     DocumentSearch,
     KnowledgeProvider,
     NotificationRepository,
     Notifier,
+    PageReader,
     ReminderRepository,
     TaskRepository,
     TimerRepository,
@@ -54,6 +59,7 @@ from jarvis_core.domain.ports import (
 from jarvis_core.domain.records import Reminder, Task, Timer
 
 Clock = Callable[[], datetime]
+SPREADSHEET_SUFFIXES = (".xlsx", ".xlsm", ".csv", ".tsv")
 
 
 def local_now() -> datetime:
@@ -529,23 +535,27 @@ def knowledge_tools(provider: KnowledgeProvider) -> list[Tool]:
     ]
 
 
-def web_search_tools(provider: WebSearchProvider) -> list[Tool]:
-    """``web_search``."""
+def web_search_tools(provider: WebSearchProvider, reader: PageReader | None = None) -> list[Tool]:
+    """``web_search``: results plus the relevant parts of the top pages."""
 
     async def web_search(args: Mapping[str, Any]) -> str:
-        query = text_arg(args, "query")
-        assert query is not None
+        query = redact_query(text_arg(args, "query") or "")
+        if not query:
+            raise ToolError("Give the search terms (without personal details).")
         results = await provider.search(query, limit=5)
         if not results:
-            return "The web search returned no results."
-        return "Search results: " + " | ".join(f"{r.title}: {r.snippet}" for r in results)
+            return f"The web search for '{query}' returned no results."
+        pages = await read_top_pages(reader, results, query) if reader is not None else []
+        return describe_results(results, pages)
 
     return [
         Tool(
             ToolSpec(
                 "web_search",
-                "Search the web for current events, news or anything recent.",
-                schema({"query": _string("Search terms.")}, ["query"]),
+                "Search the internet for current events, news, prices, facts you're unsure "
+                "of, or anything recent. Never put the user's personal details (names, "
+                "numbers, documents or memories) in the query.",
+                schema({"query": _string("Short search terms.")}, ["query"]),
             ),
             "Searching the web",
             web_search,
@@ -553,30 +563,111 @@ def web_search_tools(provider: WebSearchProvider) -> list[Tool]:
     ]
 
 
-def document_tools(search: DocumentSearch) -> list[Tool]:
-    """``search_documents``."""
+_NO_FOLDER = (
+    "No documents folder is set up yet. {user} can choose one on the PC in "
+    "Settings → Knowledge → Documents folder."
+)
+
+
+def document_tools(library: DocumentSearch, user_name: str = "the user") -> list[Tool]:
+    """``search_documents``, plus ``read_spreadsheet`` and ``list_documents`` for a folder."""
+    folder_set = (lambda: bool(library.folder)) if isinstance(library, DocumentLibrary) else None
 
     async def search_documents(args: Mapping[str, Any]) -> str:
         query = text_arg(args, "query")
         assert query is not None
-        hits = await search.search(query, limit=4)
+        if folder_set is not None and not folder_set():
+            return _NO_FOLDER.format(user=user_name)
+        hits = await library.search(query, limit=4)
         if not hits:
             return "Nothing relevant was found in the user's documents."
-        return "Passages from the user's documents: " + " | ".join(
-            f"[{hit.path}] {hit.text}" for hit in hits
-        )
+        lines = ["Passages from the user's documents (name the file when you answer):"]
+        lines += [f"[{hit.path}] {hit.text}" for hit in hits]
+        if any(hit.path.lower().endswith(SPREADSHEET_SUFFIXES) for hit in hits):
+            lines.append("For exact totals from a spreadsheet, call read_spreadsheet.")
+        return "\n".join(lines)
 
-    return [
+    tools = [
         Tool(
             ToolSpec(
                 "search_documents",
-                "Search the user's own notes and documents for information.",
+                "Search the user's own files (notes, PDFs, resume, bills, Word and Excel "
+                "files) for information about them.",
                 schema({"query": _string("What to look for.")}, ["query"]),
             ),
             "Searching your documents",
             search_documents,
         )
     ]
+    if not isinstance(library, DocumentLibrary):
+        return tools
+    docs = library
+
+    async def read_spreadsheet(args: Mapping[str, Any]) -> str:
+        if not docs.folder:
+            return _NO_FOLDER.format(user=user_name)
+        names = await docs.spreadsheets()
+        if not names:
+            return "There are no spreadsheets (Excel or CSV) in the user's documents folder."
+        wanted = text_arg(args, "file", required=False) or ""
+        name = match_file(wanted, names) if wanted else (names[0] if len(names) == 1 else None)
+        if name is None:
+            listed = ", ".join(names[:15])
+            prefix = f"No spreadsheet matches '{wanted}'. " if wanted else "Which spreadsheet? "
+            return f"{prefix}The spreadsheets are: {listed}."
+        tables = await docs.tables(name)
+        if not tables:
+            return f"{name} is empty."
+        return describe_tables(tables, text_arg(args, "filter", required=False) or "")
+
+    async def list_documents(_: Mapping[str, Any]) -> str:
+        if not docs.folder:
+            return _NO_FOLDER.format(user=user_name)
+        status = await docs.status()
+        if not status.exists:
+            return f"The documents folder {status.folder} doesn't exist."
+        if not status.files:
+            return "The documents folder is empty."
+        kinds = Counter(f.kind for f in status.files)
+        summary = ", ".join(f"{n} {_KIND_NAMES.get(k, k)}" for k, n in kinds.most_common())
+        names = ", ".join(f.path for f in status.files[:40])
+        more = f" and {len(status.files) - 40} more" if len(status.files) > 40 else ""
+        return f"{len(status.files)} files ({summary}): {names}{more}."
+
+    return [
+        *tools,
+        Tool(
+            ToolSpec(
+                "read_spreadsheet",
+                "Exact numbers from one of the user's spreadsheets (Excel or CSV): totals, "
+                "largest, smallest and averages per column, e.g. debts, bills or a budget. "
+                "Use it for any 'how much' or 'total' question about their files.",
+                schema(
+                    {
+                        "file": _string("Part of the file name, e.g. 'debts'."),
+                        "filter": _string(
+                            "Only rows containing these words, e.g. 'BDO'. Omit for all rows."
+                        ),
+                    },
+                    [],
+                ),
+            ),
+            "Reading your spreadsheet",
+            read_spreadsheet,
+        ),
+        Tool(
+            ToolSpec(
+                "list_documents",
+                "List the files in the user's documents folder.",
+                schema({}, []),
+            ),
+            "Checking your documents",
+            list_documents,
+        ),
+    ]
+
+
+_KIND_NAMES = {"pdf": "PDF", "word": "Word", "spreadsheet": "spreadsheet", "text": "note"}
 
 
 # ------------------------------------------------------------ phase 4 data

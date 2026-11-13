@@ -20,6 +20,7 @@ import { useAssistant, useVoiceAssistant } from '../../core/voice/hooks';
 import { cn } from '../../lib/cn';
 import { THEMES, useUi } from '../../state/uiStore';
 import { Modal } from '../ui/Modal';
+import { KnowledgeStatus } from './KnowledgeStatus';
 import { PhoneAccess } from './PhoneAccess';
 import { diffSettings } from './settingsDiff';
 
@@ -523,6 +524,24 @@ export function SettingsPanel() {
               Google Calendar: Settings → your calendar → “Secret address in iCal format”. Treat it
               like a password.
             </p>
+          </Section>
+
+          <Section title="Knowledge">
+            <Field label="Documents folder" hint="PDF · Word · Excel · CSV · notes">
+              <input
+                className={cn(inputClass, 'font-mono text-[11.5px]')}
+                value={draft.documents_dir}
+                placeholder="C:\Users\you\Documents\Jarvis"
+                disabled={!local}
+                onChange={(e) => set('documents_dir', e.target.value)}
+              />
+            </Field>
+            <p className="text-[11.5px] leading-relaxed text-white/35">
+              {local
+                ? 'Paste a folder path and Save. Put your resume, bills, statements, a debts spreadsheet… in it, and Jarvis uses them to answer. Files are read on this PC only; nothing is uploaded.'
+                : 'The folder can only be changed on the PC.'}
+            </p>
+            <KnowledgeStatus editable={local} />
           </Section>
 
           {local && (

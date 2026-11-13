@@ -46,6 +46,10 @@ The **bell** in the top bar keeps everything Jarvis announced: timers, reminders
 - Ask *"What did I miss?"*: Jarvis reads out the unread ones and marks them read.
 - **Clear history** empties the list. Jarvis keeps the last 30 days (at most 500 entries).
 
+## Knowledge: the web and your documents
+
+**Settings → Knowledge** shows which web search Jarvis uses and lets you choose a **documents folder**: your resume, bills, statements, a spreadsheet of debts, and so on. Jarvis reads PDF, Word, Excel, CSV and text files there, and answers questions like *"How much do I owe in total?"* or *"What's on my resume?"*, naming the file. See [Knowledge sources](web-search.md).
+
 ## Focus mode
 
 The **focus icon** hides every widget and leaves only the core, captions and command bar. Reminder and alert chimes are muted, but they still appear in the transcript and are still spoken. Timers always ring.

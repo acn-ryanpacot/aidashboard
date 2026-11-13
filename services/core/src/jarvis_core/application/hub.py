@@ -12,6 +12,8 @@ log = structlog.get_logger(__name__)
 
 #: ``data_changed`` topic for the notifications center.
 NOTIFICATIONS_TOPIC = "notifications"
+#: Sent when the documents index starts or finishes a refresh.
+DOCUMENTS_TOPIC = "documents"
 
 
 class SessionHub:

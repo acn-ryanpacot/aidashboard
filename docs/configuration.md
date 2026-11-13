@@ -95,8 +95,12 @@ Requests from other devices (anything relayed by `tailscale serve`, or not from 
 | `JARVIS_DEFAULT_LOCATION`      | (empty)            | e.g. `Manila`, used when no place is named          |
 | `JARVIS_ENCYCLOPEDIA_ENABLED`  | `true`             | Wikipedia                                          |
 | `JARVIS_ENCYCLOPEDIA_USER_AGENT` | `JarvisOS/0.2 (+https://localhost; …)` | Wikimedia's robot policy wants a contact URL or email here; put your own repo URL if you have one |
-| `JARVIS_SEARXNG_URL`           | (empty)            | Enables `web_search`                               |
-| `JARVIS_DOCUMENTS_DIR`         | (empty)            | Enables `search_documents` over that folder         |
+| `JARVIS_WEB_SEARCH`            | `auto`             | `auto` (SearXNG if set, then DuckDuckGo), `searxng`, `duckduckgo` or `off` |
+| `JARVIS_SEARXNG_URL`           | (empty)            | Your SearXNG, e.g. `http://127.0.0.1:8888` ([guide](guides/web-search.md)) |
+| `JARVIS_WEB_SEARCH_REGION`     | `wt-wt`            | DuckDuckGo region, e.g. `ph-en`                    |
+| `JARVIS_WEB_READ_PAGES`        | `true`             | Read the top two result pages, not just snippets   |
+| `JARVIS_DOCUMENTS_DIR`         | (empty)            | Documents folder (PDF, Word, Excel, CSV, notes); **live** in Settings → Knowledge |
+| `JARVIS_DOCUMENTS_RESCAN_S`    | `300`              | How often to look for new or changed files (`0` = only at start) |
 | `JARVIS_MCP_SERVERS`           | `[]`               | JSON list, see the MCP guide                       |
 | `JARVIS_REMINDER_POLL_S`       | `5`                | Reminder check interval                            |
 | `JARVIS_TIMER_POLL_S`          | `1`                | Timer check interval (seconds)                     |

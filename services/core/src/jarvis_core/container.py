@@ -35,10 +35,10 @@ from jarvis_core.application.conversation import ConversationHistory
 from jarvis_core.application.devices import DeviceAccess
 from jarvis_core.application.endpointing import EndpointingConfig, UtteranceRecorder
 from jarvis_core.application.greeting import GreetingCache
-from jarvis_core.application.hub import SessionHub
+from jarvis_core.application.hub import DOCUMENTS_TOPIC, SessionHub
 from jarvis_core.application.information import NewsService, ScheduleService, WeatherService
 from jarvis_core.application.memory import MemoryService
-from jarvis_core.application.persona import Persona, PersonaStyle
+from jarvis_core.application.persona import Persona, PersonaStyle, describe_abilities
 from jarvis_core.application.portfolio import PortfolioService
 from jarvis_core.application.reminders import ReminderScheduler
 from jarvis_core.application.runtime_settings import RuntimeSettings, SettingsService
@@ -53,12 +53,14 @@ from jarvis_core.config import Settings
 from jarvis_core.domain.models import INPUT_FRAME_SAMPLES, INPUT_SAMPLE_RATE
 from jarvis_core.domain.ports import (
     CalendarProvider,
+    DocumentLibrary,
     DocumentSearch,
     EmbeddingModel,
     KnowledgeProvider,
     LanguageModel,
     NewsProvider,
     NotificationRepository,
+    PageReader,
     PortfolioSource,
     PreferenceStore,
     ReminderRepository,
@@ -110,6 +112,7 @@ def runtime_defaults(s: Settings) -> RuntimeSettings:
         news_feeds=list(s.news_feeds),
         calendar_urls=list(s.calendar_urls),
         portfolio_feed_url=s.portfolio_feed_url,
+        documents_dir=s.documents_dir,
     )
 
 
@@ -146,6 +149,8 @@ class Container:
     portfolio: PortfolioService | None = None
     stock_alerts: StockAlertService | None = None
     remote: RemoteAccessProbe | None = None
+    documents: DocumentLibrary | None = None
+    web_search: str = ""
     system: SystemMonitor | None = None
     speaker: SpeakerVerification | None = None
     router: ToolRouter | None = None
@@ -252,6 +257,7 @@ def assemble(
     weather: WeatherProvider | None = None,
     knowledge: KnowledgeProvider | None = None,
     web_search: WebSearchProvider | None = None,
+    page_reader: PageReader | None = None,
     documents: DocumentSearch | None = None,
     news: NewsProvider | None = None,
     calendar: CalendarProvider | None = None,
@@ -278,7 +284,8 @@ def assemble(
         weather: Weather provider.
         knowledge: Encyclopedia provider.
         web_search: Web search provider.
-        documents: Local document search.
+        page_reader: Reads result pages for web search.
+        documents: The user's documents folder (or any document search).
         news: RSS/Atom reader.
         calendar: ICS reader.
         portfolio: Stock portfolio from a companion app (PisoTiyempo).
@@ -296,12 +303,18 @@ def assemble(
     preferences = SqlitePreferenceStore(database)
     runtime = SettingsService(runtime_defaults(s), preferences)
 
+    library = documents if isinstance(documents, DocumentLibrary) else None
+    if library is not None and runtime.current.documents_dir:
+        library.set_folder(runtime.current.documents_dir)
+    abilities = describe_abilities(web=web_search is not None, documents=documents is not None)
+
     def make_persona(r: RuntimeSettings) -> Persona:
         return Persona(
             s.assistant_name,
             r.user_name,
             s.greeting_template.format(user_name=r.user_name),
             PersonaStyle(r.persona_formality, r.persona_verbosity, r.persona_humour),
+            abilities=abilities if s.tools_enabled else "",
         )
 
     persona = make_persona(runtime.current)
@@ -356,9 +369,9 @@ def assemble(
         if knowledge is not None:
             tools.extend(builtin.knowledge_tools(knowledge))
         if web_search is not None:
-            tools.extend(builtin.web_search_tools(web_search))
+            tools.extend(builtin.web_search_tools(web_search, page_reader))
         if documents is not None:
-            tools.extend(builtin.document_tools(documents))
+            tools.extend(builtin.document_tools(documents, persona.user_name))
         if news_service is not None:
             tools.extend(builtin.news_tools(news_service))
         if schedule_service is not None:
@@ -426,6 +439,7 @@ def assemble(
             weather,
             knowledge,
             web_search,
+            page_reader,
             documents,
             news,
             calendar,
@@ -463,6 +477,8 @@ def assemble(
         portfolio=portfolio_service,
         stock_alerts=alert_service,
         remote=remote,
+        documents=library,
+        web_search=getattr(web_search, "label", type(web_search).__name__) if web_search else "",
         system=system,
         speaker=speaker,
         router=router,
@@ -507,6 +523,8 @@ def assemble(
                 portfolio.set_feed_url(new.portfolio_feed_url)
             if portfolio_service is not None:
                 portfolio_service.invalidate()
+        if library is not None and new.documents_dir != old.documents_dir:
+            library.set_folder(new.documents_dir)
         config, endpointing = container.session_config()
         for session in hub.sessions():
             session.apply_config(config, endpointing=endpointing, wake_threshold=new.wake_threshold)
@@ -514,6 +532,8 @@ def assemble(
             await hub.data_changed("settings")
 
     runtime.on_change(apply_settings)
+    if library is not None:
+        library.on_change(lambda: hub.data_changed(DOCUMENTS_TOPIC))
     return container
 
 
@@ -529,7 +549,7 @@ def build_container(settings: Settings) -> Container:
     s = settings
     s.data_dir.mkdir(parents=True, exist_ok=True)
     database = Database(s.data_dir / "jarvis.db")
-    embedder = _build_embedder(s) if s.memory_enabled or s.documents_dir else None
+    embedder = _build_embedder(s) if s.memory_enabled or s.tools_enabled else None
     stt = _build_stt(s)
     speaker_encoder, voiceprints = _build_speaker(s)
     return assemble(
@@ -544,6 +564,7 @@ def build_container(settings: Settings) -> Container:
         weather=_build_weather(s),
         knowledge=_build_knowledge(s),
         web_search=_build_web_search(s),
+        page_reader=_build_page_reader(s),
         documents=_build_documents(s, database, embedder),
         news=_build_news(),
         calendar=_build_calendar(),
@@ -664,23 +685,45 @@ def _build_knowledge(s: Settings) -> KnowledgeProvider | None:
 
 
 def _build_web_search(s: Settings) -> WebSearchProvider | None:
-    if not (s.tools_enabled and s.searxng_url):
+    if not s.tools_enabled or s.web_search == "off":
         return None
+    from jarvis_core.adapters.web.duckduckgo import DuckDuckGoSearchProvider
     from jarvis_core.adapters.web.searxng import SearxngSearchProvider
+    from jarvis_core.application.web import FallbackWebSearch
 
-    return SearxngSearchProvider(s.searxng_url)
+    providers: list[WebSearchProvider] = []
+    if s.searxng_url and s.web_search in {"auto", "searxng"}:
+        providers.append(SearxngSearchProvider(s.searxng_url))
+    if s.web_search in {"auto", "duckduckgo"}:
+        providers.append(DuckDuckGoSearchProvider(region=s.web_search_region))
+    if not providers:
+        log.warning("web_search_unconfigured", hint="set JARVIS_SEARXNG_URL")
+        return None
+    return providers[0] if len(providers) == 1 else FallbackWebSearch(providers)
+
+
+def _build_page_reader(s: Settings) -> PageReader | None:
+    if not (s.tools_enabled and s.web_search != "off" and s.web_read_pages):
+        return None
+    from jarvis_core.adapters.web.pages import HttpPageReader
+
+    return HttpPageReader()
 
 
 def _build_documents(
     s: Settings, database: Database, embedder: EmbeddingModel | None
 ) -> DocumentSearch | None:
-    if not (s.tools_enabled and s.documents_dir and embedder is not None):
+    if not (s.tools_enabled and embedder is not None):
         return None
     from jarvis_core.adapters.documents.folder_index import FolderDocumentIndex
     from jarvis_core.adapters.persistence.repositories import SqliteDocumentChunkStore
 
+    # The folder itself is a live setting (Settings → Knowledge); assemble sets it.
     return FolderDocumentIndex(
-        Path(s.documents_dir).expanduser(), SqliteDocumentChunkStore(database), embedder
+        s.documents_dir,
+        SqliteDocumentChunkStore(database),
+        embedder,
+        rescan_s=s.documents_rescan_s,
     )
 
 

@@ -15,6 +15,7 @@ from jarvis_core.application.brain import Brain, ToolUse
 from jarvis_core.application.memory import MemoryService
 from jarvis_core.application.persona import Persona, PersonaStyle
 from jarvis_core.application.tools.registry import Tool, ToolError, ToolRegistry
+from jarvis_core.domain.errors import JarvisError
 from jarvis_core.domain.models import Role, TextDelta, ToolCall, ToolSpec
 from tests.fakes import FakeEmbedder, FakeLlm
 
@@ -114,6 +115,17 @@ async def test_registry_turns_failures_into_messages() -> None:
     assert "too long" in await registry.execute(ToolCall("hangs", {}))
     assert "no tool called" in await registry.execute(ToolCall("missing", {}))
     assert registry.label("missing") == "Working on it"
+
+
+async def test_registry_passes_data_source_errors_to_the_model() -> None:
+    async def offline(_: Mapping[str, Any]) -> str:
+        raise JarvisError("Web search is unavailable right now.")
+
+    registry = ToolRegistry()
+    registry.extend([Tool(ToolSpec("offline", ""), "", offline)])
+    assert await registry.execute(ToolCall("offline", {})) == (
+        "Error: Web search is unavailable right now."
+    )
 
 
 def test_registry_rejects_duplicates() -> None:

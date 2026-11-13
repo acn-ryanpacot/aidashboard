@@ -328,6 +328,85 @@ def check_tailscale(settings: Settings) -> Check:
     return Check("Tailscale (phones)", Status.OK, f"phones open {status.public_url}")
 
 
+def check_web_search(settings: Settings) -> Check:
+    """Which web search Jarvis will use."""
+    if not settings.tools_enabled or settings.web_search == "off":
+        return Check("Web search", Status.WARN, "off", "Set JARVIS_WEB_SEARCH=auto to enable it.")
+    url = settings.searxng_url.rstrip("/")
+    fallback = settings.web_search == "auto"
+    if url and settings.web_search != "duckduckgo":
+        try:
+            response = httpx.get(
+                f"{url}/search", params={"q": "jarvis", "format": "json"}, timeout=5
+            )
+            response.raise_for_status()
+            response.json()
+        except (httpx.HTTPError, ValueError):
+            return Check(
+                "Web search",
+                Status.WARN,
+                f"SearXNG not answering at {url}"
+                + (" (using DuckDuckGo meanwhile)" if fallback else ""),
+                "cd services/searxng; docker compose up -d   (JSON must be enabled; see "
+                "docs/guides/web-search.md)",
+            )
+        return Check("Web search", Status.OK, f"SearXNG at {url}")
+    return Check(
+        "Web search",
+        Status.OK,
+        "DuckDuckGo (no setup needed)",
+        "For a more reliable, private search run SearXNG: docs/guides/web-search.md",
+    )
+
+
+def documents_folder(settings: Settings) -> str:
+    """The documents folder: the Settings screen's choice, else ``JARVIS_DOCUMENTS_DIR``."""
+    import json
+    import sqlite3
+
+    from jarvis_core.application.runtime_settings import PREFERENCE_KEY
+
+    database = settings.data_dir / "jarvis.db"
+    if database.is_file():
+        try:
+            with sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True) as conn:
+                row = conn.execute(
+                    "SELECT value FROM preferences WHERE key = ?", (PREFERENCE_KEY,)
+                ).fetchone()
+            stored = json.loads(row[0]) if row else {}
+            if isinstance(stored, dict) and "documents_dir" in stored:
+                return str(stored["documents_dir"])
+        except (sqlite3.Error, ValueError):
+            pass
+    return settings.documents_dir
+
+
+def check_documents(settings: Settings) -> Check:
+    """Whether a documents folder is set and how many files Jarvis can read in it."""
+    from jarvis_core.adapters.documents.extractors import kind_of
+
+    folder_text = documents_folder(settings).strip().strip('"')
+    if not folder_text:
+        return Check(
+            "Documents folder",
+            Status.WARN,
+            "not set (Jarvis can't read your files yet)",
+            "Optional. Dashboard → Settings → Knowledge → Documents folder",
+        )
+    folder = Path(folder_text).expanduser()
+    if not folder.is_dir():
+        return Check(
+            "Documents folder", Status.WARN, f"{folder} doesn't exist", "Fix it in Settings"
+        )
+    kinds: dict[str, int] = {}
+    for path in folder.rglob("*"):
+        kind = kind_of(path)
+        if kind and path.is_file() and not path.name.startswith(("~$", ".")):
+            kinds[kind] = kinds.get(kind, 0) + 1
+    summary = ", ".join(f"{n} {k}" for k, n in sorted(kinds.items())) or "no readable files"
+    return Check("Documents folder", Status.OK, f"{folder}: {summary}")
+
+
 def run_checks(settings: Settings) -> list[Check]:
     """Run every check (never raises)."""
     checks: list[Check] = [check_python(), check_data_dir(settings), check_port(settings)]
@@ -337,6 +416,8 @@ def run_checks(settings: Settings) -> list[Check]:
         if settings.portfolio_alerts_enabled:
             checks.append(check_pisotiyempo_alerts(settings))
     checks += check_ollama(settings)
+    if settings.tools_enabled:
+        checks += [check_web_search(settings), check_documents(settings)]
     voice: list[tuple[str, str, str, bool]] = [
         ("faster_whisper", "faster-whisper (STT)", "voice", settings.stt_engine != "none"),
         ("kokoro", "Kokoro (TTS)", "voice", settings.tts_engine != "none"),

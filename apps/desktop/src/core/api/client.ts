@@ -78,6 +78,8 @@ export interface RuntimeSettings {
   readonly calendar_urls: readonly string[];
   /** PisoTiyempo desktop feed address ("" = read its export files only). */
   readonly portfolio_feed_url: string;
+  /** The documents folder Jarvis reads ("" = none). Only changeable on the PC. */
+  readonly documents_dir: string;
 }
 
 export interface SettingsResponse {
@@ -239,6 +241,46 @@ export interface RemoteStatus {
   readonly web_ui: boolean;
 }
 
+/** One file in the documents folder. */
+export interface DocumentFile {
+  readonly path: string;
+  readonly kind: 'text' | 'pdf' | 'word' | 'spreadsheet';
+  readonly size: number;
+  readonly modified: string;
+  /** Passages indexed for search (0 = not readable yet). */
+  readonly chunks: number;
+  /** Why it couldn't be read, e.g. "no text layer — probably a scan". */
+  readonly problem: string | null;
+}
+
+/** The documents folder and its search index. */
+export interface DocumentsStatus {
+  /** False when document search can't run at all (see `error`). */
+  readonly available: boolean;
+  readonly folder: string;
+  readonly exists: boolean;
+  readonly indexing: boolean;
+  readonly total: number;
+  readonly indexed: number;
+  readonly by_kind: Readonly<Record<string, number>>;
+  readonly files: readonly DocumentFile[];
+  readonly last_indexed: string | null;
+  readonly error: string | null;
+}
+
+/** `GET /api/knowledge`: where Jarvis looks things up. */
+export interface KnowledgeStatus {
+  readonly documents: DocumentsStatus;
+  readonly web: {
+    readonly enabled: boolean;
+    /** E.g. "SearXNG, then DuckDuckGo". */
+    readonly provider: string;
+    readonly mode: 'auto' | 'searxng' | 'duckduckgo' | 'off';
+    readonly searxng: boolean;
+    readonly reads_pages: boolean;
+  };
+}
+
 /** Raised for non-2xx responses; `message` carries the server's explanation. */
 export class ApiError extends Error {
   override readonly name = 'ApiError';
@@ -323,6 +365,9 @@ export const coreApi = {
     request<PairedDevice>('/api/devices', { method: 'POST', body: JSON.stringify({ name }) }),
   revokeDevice: (id: number) => request<undefined>(`/api/devices/${id}`, { method: 'DELETE' }),
   getRemoteStatus: () => request<RemoteStatus>('/api/devices/remote'),
+
+  getKnowledge: () => request<KnowledgeStatus>('/api/knowledge'),
+  reindexDocuments: () => request<DocumentsStatus>('/api/documents/reindex', { method: 'POST' }),
 };
 
 /**

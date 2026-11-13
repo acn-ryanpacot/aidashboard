@@ -146,8 +146,24 @@ class Settings(BaseSettings):
         default="JarvisOS/0.2 (+https://localhost; self-hosted personal assistant) python-httpx",
         description="Wikimedia asks for a contact URL or email in the User-Agent.",
     )
+    web_search: Literal["auto", "searxng", "duckduckgo", "off"] = Field(
+        default="auto",
+        description="auto = SearXNG when JARVIS_SEARXNG_URL is set, with DuckDuckGo as fallback.",
+    )
     searxng_url: str = Field(default="", description="Self-hosted SearXNG for web search.")
-    documents_dir: str = Field(default="", description="Folder of notes to search (RAG).")
+    web_search_region: str = Field(
+        default="wt-wt", description="DuckDuckGo region, e.g. ph-en (wt-wt = worldwide)."
+    )
+    web_read_pages: bool = Field(
+        default=True, description="Read the top result pages, not just their snippets."
+    )
+    documents_dir: str = Field(
+        default="",
+        description="Your documents folder (notes, PDF, Word, Excel); also set in Settings.",
+    )
+    documents_rescan_s: float = Field(
+        default=300.0, ge=0, description="How often to look for new files (0 = only on start)."
+    )
     mcp_servers: list[McpServerSettings] = Field(default_factory=list)
     reminder_poll_s: float = Field(default=5.0, ge=1.0)
     timer_poll_s: float = Field(default=1.0, ge=0.2, description="How often timers are checked.")

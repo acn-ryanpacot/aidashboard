@@ -172,6 +172,10 @@ BUILTIN_GROUPS: tuple[ToolGroup, ...] = (
             r"\bprice of\b",
             r"\bscore\b",
             r"\bthis week\b",
+            r"\b(internet|online|the web)\b",
+            r"\bwho won\b",
+            r"\bexchange rate\b",
+            r"\brecent(ly)?\b",
         ),
     ),
     ToolGroup(
@@ -227,12 +231,19 @@ BUILTIN_GROUPS: tuple[ToolGroup, ...] = (
     ),
     ToolGroup(
         "documents",
-        "The user's own notes and documents.",
-        ("search_documents",),
+        "The user's own files: notes, resume, bills, debts, PDFs and spreadsheets.",
+        ("search_documents", "read_spreadsheet", "list_documents"),
         (
-            r"\bmy (notes|documents|docs|files|journal)\b",
+            r"\bmy (notes|documents|docs|files|journal|folder)\b",
             r"\bdid i write\b",
             r"\bin my notes\b",
+            r"\b(resume|cv|curriculum vitae)\b",
+            r"\b(bills?|debts?|loans?|credit cards?|statements?|payslips?|receipts?|budget)\b",
+            r"\b(how much|what) do i (owe|pay|spend|earn)\b",
+            r"\bi owe\b",
+            r"\b(spreadsheets?|excel|csv|pdfs?|word files?)\b",
+            r"\bmy (insurance|policy|contract|lease|salary)\b",
+            r"\babout me\b",
         ),
     ),
 )

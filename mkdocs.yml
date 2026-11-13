@@ -87,3 +87,4 @@ nav:
       - adr/0014-desktop-launches-core.md
       - adr/0015-companion-app-feeds.md
       - adr/0016-phone-access.md
+      - adr/0017-knowledge-sources.md

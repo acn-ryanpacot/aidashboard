@@ -1,0 +1,29 @@
+# Private web search for Jarvis: a SearXNG meta-search engine on this PC only.
+#
+#   cd services/searxng
+#   docker compose up -d
+#
+# Then set JARVIS_SEARXNG_URL=http://127.0.0.1:8888 in services/core/.env and
+# restart the core. See docs/guides/web-search.md.
+#
+# The port is bound to 127.0.0.1, so nothing else on your network can use it.
+
+services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: jarvis-searxng
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8888:8080"
+    volumes:
+      - ./settings.yml:/etc/searxng/settings.yml:ro
+    environment:
+      SEARXNG_BASE_URL: http://127.0.0.1:8888/
+      # Signs this instance's own cookies. It's only reachable from this PC,
+      # but you can set your own in a .env file next to this one.
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-jarvis-loopback-only-change-me}
+    logging:
+      driver: json-file
+      options:
+        max-size: 1m
+        max-file: "1"

@@ -207,6 +207,70 @@ class DocumentHit:
     score: float
 
 
+#: A spreadsheet cell as read from a file: numbers stay numbers, CSV cells are
+#: text, dates are ISO strings, empty cells are ``None``.
+Cell = str | float | int | None
+
+
+@dataclass(frozen=True, slots=True)
+class SheetTable:
+    """One sheet of a spreadsheet in the user's documents folder.
+
+    Attributes:
+        file: Path relative to the documents folder, e.g. ``money/debts.xlsx``.
+        sheet: Sheet name (the file name for CSV files).
+        header: Column names (``Column A``, … when the sheet has no header row).
+        rows: Data rows, each as long as ``header``.
+    """
+
+    file: str
+    sheet: str
+    header: tuple[str, ...]
+    rows: tuple[tuple[Cell, ...], ...]
+
+
+@dataclass(frozen=True, slots=True)
+class DocumentFile:
+    """A file in the user's documents folder.
+
+    Attributes:
+        path: Relative to the folder.
+        kind: ``text``, ``pdf``, ``word`` or ``spreadsheet``.
+        size: Bytes.
+        modified: Last modification time (timezone-aware).
+        chunks: Passages indexed for search (0 = not readable yet).
+        problem: Why the file couldn't be indexed, if it couldn't.
+    """
+
+    path: str
+    kind: str
+    size: int
+    modified: datetime
+    chunks: int = 0
+    problem: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DocumentsStatus:
+    """The state of the documents index, for Settings.
+
+    Attributes:
+        folder: The configured folder ("" when none is set).
+        exists: Whether the folder exists.
+        indexing: An index refresh is running.
+        files: Every supported file found, sorted by path.
+        last_indexed: When the last refresh finished.
+        error: A problem affecting every file (e.g. no embedding model).
+    """
+
+    folder: str
+    exists: bool
+    indexing: bool
+    files: tuple[DocumentFile, ...] = ()
+    last_indexed: datetime | None = None
+    error: str | None = None
+
+
 @dataclass(frozen=True, slots=True)
 class Headline:
     """A news headline from an RSS/Atom feed."""
