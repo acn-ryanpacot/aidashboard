@@ -450,6 +450,18 @@ class SqliteDocumentChunkStore:
 
         return await self._db.run(op)
 
+    async def all_passages(self) -> list[tuple[str, int, str, tuple[float, ...]]]:
+        """Every ``(path, ordinal, text, embedding)``, in file and reading order."""
+        sql = "SELECT path, ordinal, text, embedding FROM document_chunks ORDER BY path, ordinal"
+
+        def op(conn: sqlite3.Connection) -> list[tuple[str, int, str, tuple[float, ...]]]:
+            return [
+                (r["path"], r["ordinal"], r["text"], _decode_vector(r["embedding"]) or ())
+                for r in conn.execute(sql).fetchall()
+            ]
+
+        return await self._db.run(op)
+
 
 # --------------------------------------------------------------- preferences
 

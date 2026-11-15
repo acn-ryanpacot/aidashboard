@@ -1,9 +1,13 @@
-"""The user's documents folder: semantic search (local RAG) and spreadsheets.
+"""The user's documents folder: hybrid search (local RAG) and spreadsheets.
 
 Notes, PDFs, Word documents and spreadsheets are read locally (see
 :mod:`~jarvis_core.adapters.documents.extractors`), split into passages,
 embedded with the local embedding model and cached in SQLite. Nothing leaves
 the machine.
+
+Search combines meaning (embeddings) with keywords (BM25), favours files the
+question names, and returns each top passage with the one that follows it;
+see :mod:`jarvis_core.application.retrieval`.
 """
 
 from __future__ import annotations
@@ -11,10 +15,11 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+import numpy as np
 import structlog
 
 from jarvis_core.adapters.documents.chunking import chunk_text
@@ -26,9 +31,9 @@ from jarvis_core.adapters.documents.extractors import (
     read_tables,
 )
 from jarvis_core.adapters.persistence.repositories import SqliteDocumentChunkStore
-from jarvis_core.application.vectors import cosine_similarity
+from jarvis_core.application.retrieval import KeywordIndex, fuse, names_in_query
 from jarvis_core.domain.errors import JarvisError
-from jarvis_core.domain.ports import EmbeddingModel
+from jarvis_core.domain.ports import EmbeddingModel, PreferenceStore
 from jarvis_core.domain.records import DocumentFile, DocumentHit, DocumentsStatus, SheetTable
 
 __all__ = ["SUPPORTED_SUFFIXES", "FolderDocumentIndex"]
@@ -43,12 +48,33 @@ MAX_BINARY_BYTES = 40_000_000
 #: Passages kept per file, so one huge PDF can't dominate the index.
 MAX_CHUNKS_PER_FILE = 600
 _SKIPPED_FOLDERS = frozenset({"node_modules", "__pycache__"})
+#: Bump when the way passages are embedded changes: forces one full re-index.
+INDEX_FORMAT = 2
+#: Preference key holding the signature the stored vectors were made with.
+SIGNATURE_KEY = "documents_index_signature"
+#: Candidates taken from each ranking before fusing.
+CANDIDATES = 20
+#: Top hits that also get the passage that follows them.
+WITH_NEXT_PASSAGE = 2
+MAX_HIT_CHARS = 1600
 
 
 @dataclass(frozen=True, slots=True)
 class _OnDisk:
     mtime: float
     size: int
+
+
+@dataclass(slots=True)
+class _Corpus:
+    """Every passage of the current folder, ready to search (rebuilt after indexing)."""
+
+    paths: list[str]
+    ordinals: list[int]
+    texts: list[str]
+    matrix: np.ndarray  # unit-length rows; zeros where a vector is missing
+    keywords: KeywordIndex
+    lookup: dict[tuple[str, int], int] = field(default_factory=dict)
 
 
 class FolderDocumentIndex:
@@ -61,8 +87,14 @@ class FolderDocumentIndex:
         folder: Root folder to index (searched recursively); ``""`` = none yet.
         store: Chunk persistence.
         embedder: Embedding model.
-        min_score: Minimum cosine similarity for a hit.
+        min_score: Minimum cosine similarity for a meaning-only hit.
         rescan_s: How often to look for new or changed files (0 = never).
+        query_prefix: Prepended to questions before embedding (model-specific,
+            see :func:`~jarvis_core.application.retrieval.embedding_prefixes`).
+        document_prefix: Prepended to passages before embedding.
+        meta: Where to remember which embedding setup the stored vectors use.
+        signature: Identifies that setup (e.g. the model name); when it
+            changes, everything is re-embedded once.
     """
 
     def __init__(
@@ -73,6 +105,10 @@ class FolderDocumentIndex:
         *,
         min_score: float = 0.35,
         rescan_s: float = 300.0,
+        query_prefix: str = "",
+        document_prefix: str = "",
+        meta: PreferenceStore | None = None,
+        signature: str = "",
     ) -> None:
         self._folder = _as_folder(folder)
         self._store = store
@@ -86,6 +122,11 @@ class FolderDocumentIndex:
         self._last_indexed: datetime | None = None
         self._error: str | None = None
         self._listeners: list[Callable[[], Awaitable[None]]] = []
+        self._query_prefix = query_prefix
+        self._document_prefix = document_prefix
+        self._meta = meta
+        self._signature = f"{signature}|format{INDEX_FORMAT}|{document_prefix}"
+        self._corpus: _Corpus | None = None
 
     # ------------------------------------------------------------ settings
 
@@ -103,6 +144,7 @@ class FolderDocumentIndex:
         self._problems.clear()
         self._error = None
         self._last_indexed = None
+        self._corpus = None
         log.info("documents_folder_changed", folder=self.folder or None)
         self._start_refresh(force=False)
 
@@ -121,8 +163,15 @@ class FolderDocumentIndex:
         async with self._lock:
             await self._notify()
             try:
-                return await self._refresh(force)
+                stale = await self._signature_changed()
+                if stale:
+                    log.info("documents_reindexing", reason="embedding setup changed")
+                updated = await self._refresh(force or stale)
+                if stale and self._error is None and self._meta is not None:
+                    await self._meta.set(SIGNATURE_KEY, self._signature)
+                return updated
             finally:
+                self._corpus = None  # rebuilt on the next search
                 self._last_indexed = datetime.now(UTC)
                 await self._notify()
 
@@ -153,7 +202,9 @@ class FolderDocumentIndex:
                 continue
             chunks = chunk_text(text)[:MAX_CHUNKS_PER_FILE]
             try:
-                vectors = await self._embed([f"{name}\n{chunk}" for chunk in chunks])
+                vectors = await self._embed(
+                    [f"{self._document_prefix}{name}\n{chunk}" for chunk in chunks]
+                )
             except Exception as exc:
                 embed_failures += 1
                 self._error = f"The embedding model isn't available ({_reason(exc)})."
@@ -171,6 +222,11 @@ class FolderDocumentIndex:
         self._problems = {p: v for p, v in self._problems.items() if p in on_disk}
         log.info("documents_indexed", folder=self.folder, updated=updated, total=len(on_disk))
         return updated
+
+    async def _signature_changed(self) -> bool:
+        if self._meta is None or self._folder is None:
+            return False
+        return bool(await self._meta.get(SIGNATURE_KEY) != self._signature)
 
     async def _embed(self, texts: list[str]) -> list[list[float]]:
         vectors: list[list[float]] = []
@@ -222,20 +278,80 @@ class FolderDocumentIndex:
     # -------------------------------------------------------------- reading
 
     async def search(self, query: str, limit: int = 4) -> list[DocumentHit]:
-        """Best-matching passages for ``query`` from the current folder."""
+        """Best passages for ``query`` from the current folder (meaning + keywords)."""
         if self._folder is None:
             return []
-        chunks = [c for c in await self._store.all_chunks() if self._inside(c[0])]
-        if not chunks:
+        corpus = await self._load_corpus()
+        if not corpus.texts:
             return []
-        [query_vector] = await self._embedder.embed([query])
-        hits = [
-            DocumentHit(path=self._relative(path), text=text, score=score)
-            for path, text, vector in chunks
-            if (score := cosine_similarity(query_vector, vector)) >= self._min_score
-        ]
-        hits.sort(key=lambda h: h.score, reverse=True)
-        return hits[:limit]
+        semantic = await self._semantic(corpus, query)
+        keyword = [position for position, _ in corpus.keywords.search(query, CANDIDATES)]
+        named = names_in_query(query, {self._relative(path) for path in corpus.paths})
+        bonus = [i for i, path in enumerate(corpus.paths) if self._relative(path) in named]
+        ranked = fuse(semantic, keyword, bonus=bonus, limit=limit)
+        return self._with_context(corpus, [(r.position, r.score) for r in ranked])
+
+    async def _semantic(self, corpus: _Corpus, query: str) -> list[int]:
+        """Positions by embedding similarity (empty if the embedder is down)."""
+        if not corpus.matrix.shape[1]:
+            return []
+        try:
+            [vector] = await self._embedder.embed([f"{self._query_prefix}{query}"])
+        except Exception:
+            log.warning("document_query_embedding_failed", exc_info=True)
+            return []  # keyword search still works
+        query_vector = np.asarray(vector, dtype=np.float32)
+        norm = float(np.linalg.norm(query_vector))
+        if query_vector.shape[0] != corpus.matrix.shape[1] or not norm:
+            return []
+        similarity = corpus.matrix @ (query_vector / norm)
+        order = np.argsort(-similarity, kind="stable")[:CANDIDATES]
+        return [int(i) for i in order if similarity[i] >= self._min_score]
+
+    def _with_context(self, corpus: _Corpus, ranked: list[tuple[int, float]]) -> list[DocumentHit]:
+        """Hits in rank order; the best ones continue into the following passage."""
+        used: set[int] = set()
+        hits = []
+        for rank, (position, score) in enumerate(ranked):
+            if position in used:
+                continue
+            used.add(position)
+            text = corpus.texts[position]
+            key = (corpus.paths[position], corpus.ordinals[position] + 1)
+            following = corpus.lookup.get(key)
+            if rank < WITH_NEXT_PASSAGE and following is not None and following not in used:
+                used.add(following)
+                text = f"{text}\n\n{corpus.texts[following]}"
+            if len(text) > MAX_HIT_CHARS:
+                text = text[: MAX_HIT_CHARS - 1].rsplit(" ", 1)[0] + "…"
+            path = self._relative(corpus.paths[position])
+            hits.append(DocumentHit(path=path, text=text, score=score))
+        return hits
+
+    async def _load_corpus(self) -> _Corpus:
+        if self._corpus is not None:
+            return self._corpus
+        rows = [r for r in await self._store.all_passages() if self._inside(r[0])]
+        dimensions = [len(r[3]) for r in rows if r[3]]
+        width = max(set(dimensions), key=dimensions.count) if dimensions else 0
+        matrix = np.zeros((len(rows), width), dtype=np.float32)
+        for i, row in enumerate(rows):
+            if width and len(row[3]) == width:
+                values = np.asarray(row[3], dtype=np.float32)
+                norm = float(np.linalg.norm(values))
+                if norm:
+                    matrix[i] = values / norm
+        corpus = _Corpus(
+            paths=[r[0] for r in rows],
+            ordinals=[r[1] for r in rows],
+            texts=[r[2] for r in rows],
+            matrix=matrix,
+            # The file name is searchable too: "resume" finds resume.pdf.
+            keywords=KeywordIndex([f"{self._relative(r[0])} {r[2]}" for r in rows]),
+        )
+        corpus.lookup = {(r[0], r[1]): i for i, r in enumerate(rows)}
+        self._corpus = corpus
+        return corpus
 
     async def spreadsheets(self) -> list[str]:
         """Relative paths of the spreadsheets in the folder."""

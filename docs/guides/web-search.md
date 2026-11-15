@@ -84,6 +84,24 @@ Jarvis reads the files in the background. Settings shows the progress (e.g. *"14
 - Old `.doc`/`.xls` formats: re-save them as `.docx`/`.xlsx`.
 - Office lock files (`~$…`), hidden folders and files over 40 MB.
 
+### How Jarvis finds the right passage
+
+For each question, Jarvis picks the best few passages from your files in two ways at once:
+
+- **By meaning**, using the embedding model. *"Where did I work before?"* finds the employment section of your resume even though it never says "work before".
+- **By keywords.** Exact names, numbers and codes are found reliably: a policy number like `PH-2026-00451`, a surname, a product code. Plural and singular count the same (*bills* finds *bill*). Words found in nearly every file, like *payment*, don't decide the match.
+
+On top of that:
+
+- **The file name counts.** *"What's on my resume?"* prefers `resume.pdf`, and *"my debts"* prefers `Debts 2026.xlsx`. Naming files plainly helps.
+- **The best matches come with the passage that follows them**, so an answer isn't cut off where a passage ends (for example, an employment history spread over a page).
+- If the embedding model is briefly unavailable, keyword search still answers.
+
+With `nomic-embed-text` (the default), questions and passages get the task labels the model was trained with (`search_query:` / `search_document:`), which makes meaning-based matches more accurate. After you change `JARVIS_EMBEDDING_MODEL`, or after this update, Jarvis re-reads every file once by himself. Settings shows the progress.
+
+!!! tip "Bigger model, better answers"
+    Retrieval finds the passages, but the language model still has to read them. On an NVIDIA GPU, a 7–8B model (`ollama pull qwen2.5:7b`, then pick it in Settings → Brain) uses them much better than the default `llama3.2:3b`.
+
 ### Exact numbers from spreadsheets
 
 Small local models are bad at arithmetic, so Jarvis doesn't add numbers up himself. His `read_spreadsheet` tool does the maths and gives him finished results to read out. For each numeric column, it reports:

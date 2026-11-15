@@ -716,14 +716,23 @@ def _build_documents(
     if not (s.tools_enabled and embedder is not None):
         return None
     from jarvis_core.adapters.documents.folder_index import FolderDocumentIndex
-    from jarvis_core.adapters.persistence.repositories import SqliteDocumentChunkStore
+    from jarvis_core.adapters.persistence.repositories import (
+        SqliteDocumentChunkStore,
+        SqlitePreferenceStore,
+    )
+    from jarvis_core.application.retrieval import embedding_prefixes
 
+    query_prefix, document_prefix = embedding_prefixes(s.embedding_model)
     # The folder itself is a live setting (Settings → Knowledge); assemble sets it.
     return FolderDocumentIndex(
         s.documents_dir,
         SqliteDocumentChunkStore(database),
         embedder,
         rescan_s=s.documents_rescan_s,
+        query_prefix=query_prefix,
+        document_prefix=document_prefix,
+        meta=SqlitePreferenceStore(database),
+        signature=s.embedding_model,
     )
 
 

@@ -19,6 +19,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   - New `list_documents` tool.
   - The folder is a live setting (PC only). Settings shows indexing progress and unreadable files with the reason (e.g. scanned PDFs), and has a **Re-index now** button. New files are picked up every five minutes.
   - `GET /api/knowledge`, `POST /api/documents/reindex`.
+- **Better document search**: meaning (embeddings) and keywords (BM25) combined with reciprocal rank fusion, so exact names, numbers and codes are found. Files named in the question are preferred ("my resume" → `resume.pdf`), and the top passages come with the passage that follows them. `nomic-embed-text` now gets its `search_query:` / `search_document:` task prefixes. The folder is re-indexed once automatically when the embedding setup changes. Keyword search keeps working if the embedding model is down.
 - The system prompt lists the abilities Jarvis really has, so he no longer says he can't search the web or read your files.
 - `jarvis-doctor` checks web search and the documents folder.
 

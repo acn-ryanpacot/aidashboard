@@ -35,6 +35,15 @@ The project's constraints still apply: zero cost, local-first, private.
    - `list_documents` lists the folder.
 5. **The prompt states the real abilities.** `describe_abilities` lists the tools that are actually registered (including "searching the internet" and "reading the user's own documents"). When no tools are attached to a turn, the prompt tells the model never to deny one of those abilities and to suggest a phrasing instead.
 
+6. **Hybrid retrieval** (added 2026-11-14, `application/retrieval.py`):
+   - Embedding similarity and Okapi BM25 are merged with reciprocal rank fusion (k = 60). BM25 only counts passages containing a *distinctive* query term (in at most a quarter of the passages), so common words can't pull in noise.
+   - Files whose name the question uses get a bonus worth one first place.
+   - The top two hits are extended with the following passage of the same file.
+   - Model-specific task prefixes are applied (`search_query:` / `search_document:` for `nomic-embed-text`).
+   - A signature of the embedding setup is stored, and a change triggers one full re-index.
+   - Vectors are held as a normalised NumPy matrix, rebuilt after each refresh, so a search is a single matrix product.
+   - An LLM or cross-encoder reranker was left out: too slow for a voice turn on a small model.
+
 ## Alternatives considered
 
 - **A paid search API** (Brave, Bing, Google). It's reliable, but it costs money or needs an account with a key, which goes against ADR-0003.
