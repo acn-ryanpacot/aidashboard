@@ -228,6 +228,25 @@ def test_describe_table_adds_up_exactly(folder: Path) -> None:
     assert "Balance: total ₱52,000." in bdo
 
 
+def test_a_sheets_own_total_row_is_not_counted_twice() -> None:
+    table = make_table(
+        "debts.xlsx",
+        "Debts",
+        [
+            ["Creditor", "Balance"],
+            ["BDO card", 52000],
+            ["Home Credit", 8400],
+            ["Total", 60400],  # Excel's cached =SUM(...)
+            ["Grand total", 60400],
+        ],
+    )
+    assert table is not None
+    text = describe_table(table)
+    assert "2 row(s) of 2" in text
+    assert "Balance: total 60,400, largest 52,000 (BDO card)" in text
+    assert "Total" not in text.split("Rows:", 1)[1]
+
+
 def test_format_amount() -> None:
     assert format_amount(4909.5, "₱") == "₱4,909.50"
     assert format_amount(182400.0, "₱") == "₱182,400"

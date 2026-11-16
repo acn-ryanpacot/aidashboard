@@ -31,7 +31,12 @@ from typing import Literal
 import structlog
 
 from jarvis_core.application.cache import TtlCache
-from jarvis_core.application.spreadsheets import format_amount, label_column, parse_number
+from jarvis_core.application.spreadsheets import (
+    TOTAL_LABEL,
+    format_amount,
+    label_column,
+    parse_number,
+)
 from jarvis_core.domain.ports import DocumentLibrary, Notifier, PreferenceStore
 from jarvis_core.domain.records import Cell, SheetTable
 
@@ -69,7 +74,6 @@ _DUE = re.compile(r"\b(due|deadline|pay by|payment date|billing date|cut-?off|da
 _RATE = re.compile(r"\b(rate|interest|apr)\b|%", re.I)
 _PAID = re.compile(r"\b(paid|status|settled|done)\b", re.I)
 _PAID_VALUES = frozenset({"yes", "y", "true", "paid", "done", "settled", "x", "✓", "✔", "ok"})
-_TOTAL_LABEL = re.compile(r"^\s*(grand\s+)?(total|sum|subtotal)s?\b", re.I)
 
 
 @dataclass(frozen=True, slots=True)
@@ -299,7 +303,7 @@ def read_sheet(table: SheetTable, today: date) -> tuple[list[Debt], list[Payment
     currencies: list[str] = []
     for position, row in enumerate(table.rows):
         name = _name(row, cols.label, position)
-        if _TOTAL_LABEL.match(name) or (cols.label is not None and row[cols.label] in (None, "")):
+        if TOTAL_LABEL.match(name) or (cols.label is not None and row[cols.label] in (None, "")):
             continue  # a totals row, or a row without a name
         if cols.paid is not None and _is_paid(row[cols.paid]):
             continue

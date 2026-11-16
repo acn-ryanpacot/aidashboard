@@ -28,6 +28,8 @@ _CURRENCY_PATTERN = re.compile(r"^(₱|php|p(?=\s*\d)|\$|usd|€|eur|£)\s*", re
 _NUMBER = re.compile(r"^[+-]?(\d+(\.\d*)?|\.\d+)$")
 _WORD = re.compile(r"[a-z0-9]+")
 _FILE_NOISE = frozenset({"my", "the", "file", "sheet", "spreadsheet", "excel", "xlsx", "csv"})
+#: Labels of a sheet's own totals rows, which are never counted as items.
+TOTAL_LABEL = re.compile(r"^\s*(grand\s+)?(total|sum|subtotal)s?\b", re.IGNORECASE)
 MAX_ROWS_SHOWN = 25
 MAX_OUTPUT_CHARS = 3500
 
@@ -135,25 +137,35 @@ def summarize_columns(table: SheetTable, rows: Sequence[tuple[Cell, ...]]) -> li
     return summaries
 
 
+def data_rows(table: SheetTable) -> list[tuple[Cell, ...]]:
+    """The sheet's rows without its own totals rows ("Total", "Grand total", "Sum")."""
+    label_at = label_column(table)
+    if label_at is None:
+        return list(table.rows)
+    return [row for row in table.rows if not TOTAL_LABEL.match(str(row[label_at] or ""))]
+
+
 def filter_rows(table: SheetTable, text: str) -> list[tuple[Cell, ...]]:
-    """Rows containing every word of ``text`` (case-insensitive)."""
+    """Data rows containing every word of ``text`` (case-insensitive)."""
+    rows = data_rows(table)
     words = _WORD.findall(text.lower())
     if not words:
-        return list(table.rows)
+        return rows
     return [
         row
-        for row in table.rows
+        for row in rows
         if all(word in " ".join(str(c) for c in row if c is not None).lower() for word in words)
     ]
 
 
 def describe_table(table: SheetTable, filter_text: str = "") -> str:
     """A compact, exact summary of a sheet for the model to read out."""
-    rows = filter_rows(table, filter_text) if filter_text.strip() else list(table.rows)
+    # A sheet's own "Total" row would otherwise be counted as one more item.
+    rows = filter_rows(table, filter_text)
     scope = f' matching "{filter_text.strip()}"' if filter_text.strip() else ""
     lines = [
         f'{table.file}, sheet "{table.sheet}": {len(rows)} row(s){scope} '
-        f"of {len(table.rows)}. Columns: {', '.join(table.header)}."
+        f"of {len(data_rows(table))}. Columns: {', '.join(table.header)}."
     ]
     if not rows:
         return lines[0]
