@@ -1,4 +1,13 @@
-import { Bell, Info, type LucideIcon, Sunrise, Timer, TrendingUp, Trash2 } from 'lucide-react';
+import {
+  Bell,
+  Info,
+  type LucideIcon,
+  ReceiptText,
+  Sunrise,
+  Timer,
+  TrendingUp,
+  Trash2,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { type NotificationItem, coreApi } from '../../core/api/client';
@@ -13,6 +22,7 @@ const KIND_ICON: Partial<Record<string, LucideIcon>> = {
   alert: TrendingUp,
   reminder: Bell,
   briefing: Sunrise,
+  bill: ReceiptText,
 };
 
 const KIND_TONE: Partial<Record<string, string>> = {
@@ -20,6 +30,7 @@ const KIND_TONE: Partial<Record<string, string>> = {
   alert: 'text-signal-green bg-signal-green/10',
   reminder: 'text-arc-300 bg-arc-400/10',
   briefing: 'text-arc-200 bg-arc-400/10',
+  bill: 'text-gold-400 bg-gold-400/10',
 };
 
 function clock(iso: string): string {

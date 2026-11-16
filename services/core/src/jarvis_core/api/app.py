@@ -21,6 +21,7 @@ from jarvis_core.api.routes import (
     devices,
     health,
     knowledge,
+    money,
     voice_ws,
 )
 from jarvis_core.config import Settings
@@ -93,6 +94,7 @@ def create_app(settings: Settings | None = None, *, container: Container | None 
         dashboard.router,
         apps.router,
         knowledge.router,
+        money.router,
         devices.session_router,
         devices.router,
     ):

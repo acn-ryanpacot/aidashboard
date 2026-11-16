@@ -22,6 +22,7 @@ The layout is saved to the core service (`/api/ui-preferences/layout`), with a l
 | Timers | Countdown rings; start one by typing "12 min tea" or with a preset | — |
 | Briefing | Latest headlines | News feeds (defaults: BBC World, NPR) |
 | Portfolio | Your PSE stocks for the latest session, or three trend-and-value ideas | The PisoTiyempo app ([guide](pisotiyempo.md)) |
+| Money | Bills and debt payments due in the next two weeks, and what you owe | A debts or bills spreadsheet in your documents folder ([guide](money.md)) |
 | Memory | What Jarvis remembers; hover a fact to forget it | — |
 | Machine | CPU, RAM and GPU (VRAM) load | — |
 | Systems | Wake word, speech, barge-in, tools, mic, voice ID, latency | — |

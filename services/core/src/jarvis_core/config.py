@@ -161,6 +161,10 @@ class Settings(BaseSettings):
         default="",
         description="Your documents folder (notes, PDF, Word, Excel); also set in Settings.",
     )
+    bill_reminder_days: int = Field(
+        default=3, ge=0, le=14, description="Speak bill reminders this many days ahead (0 = off)."
+    )
+    bill_reminder_poll_s: float = Field(default=1800.0, ge=10.0)
     documents_rescan_s: float = Field(
         default=300.0, ge=0, description="How often to look for new files (0 = only on start)."
     )

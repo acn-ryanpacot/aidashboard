@@ -542,6 +542,24 @@ export function SettingsPanel() {
                 : 'The folder can only be changed on the PC.'}
             </p>
             <KnowledgeStatus editable={local} />
+            <Field label="Bill reminders" hint="Money widget">
+              <Select
+                value={String(draft.bill_reminder_days)}
+                onChange={(v) => set('bill_reminder_days', Number(v))}
+                options={[
+                  { value: '0', label: 'Off' },
+                  { value: '1', label: 'The day before' },
+                  { value: '2', label: '2 days before' },
+                  { value: '3', label: '3 days before' },
+                  { value: '5', label: '5 days before' },
+                  { value: '7', label: 'A week before' },
+                ]}
+              />
+            </Field>
+            <p className="text-[11.5px] leading-relaxed text-white/35">
+              Jarvis reads due dates from your bills and debts spreadsheets and reminds you, then
+              again on the day. Reminders are spoken between 8 AM and 9 PM.
+            </p>
           </Section>
 
           {local && (

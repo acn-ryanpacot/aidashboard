@@ -7,6 +7,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Money widget** ([guide](docs/guides/money.md)): bills and debt payments due in the next two weeks, and what you owe, read from your own debts and bills spreadsheets in the documents folder.
+  - Columns are recognised by their headers (Balance, Monthly, Rate, Due day / Bill, Amount, Due date).
+  - Due dates can be dates or days of the month (monthly).
+  - Rows marked Paid are skipped, and an unpaid past date is overdue; totals rows are ignored.
+  - The eye button hides amounts.
+- **Spoken bill reminders**: N days before each payment and on the day itself, between 8 AM and 9 PM. Set it in Settings → Knowledge → Bill reminders (default 3 days); also in the notifications bell.
+- `get_bills_and_debts` voice tool ("what bills are due this week?"), a "payments due this week" line in the morning briefing, and `GET /api/money`.
+
 - **Web search works out of the box** ([guide](docs/guides/web-search.md), [ADR-0017](docs/adr/0017-knowledge-sources.md)):
   - DuckDuckGo with no setup, or your own **SearXNG** first when `JARVIS_SEARXNG_URL` is set (`JARVIS_WEB_SEARCH=auto`).
   - A ready SearXNG setup in `services/searxng` (`docker compose up -d`, loopback only).

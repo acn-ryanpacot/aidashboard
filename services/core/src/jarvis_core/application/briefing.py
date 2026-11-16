@@ -9,6 +9,7 @@ from datetime import datetime
 import structlog
 
 from jarvis_core.application.information import NewsService, ScheduleService, WeatherService
+from jarvis_core.application.money import MoneyService, payment_text
 from jarvis_core.application.portfolio import PortfolioService, describe_portfolio
 from jarvis_core.domain.ports import Notifier, PreferenceStore, ReminderRepository, TaskRepository
 
@@ -36,6 +37,7 @@ class BriefingService:
         schedule: Calendar events.
         news: Headlines.
         portfolio: Stock portfolio (only mentioned when you hold stocks).
+        money: Bills and debts (only payments due within a week are mentioned).
         clock: Current local time.
     """
 
@@ -48,6 +50,7 @@ class BriefingService:
         schedule: ScheduleService | None = None,
         news: NewsService | None = None,
         portfolio: PortfolioService | None = None,
+        money: MoneyService | None = None,
         clock: Clock = _local_now,
     ) -> None:
         self._tasks = tasks
@@ -56,6 +59,7 @@ class BriefingService:
         self._schedule = schedule
         self._news = news
         self._portfolio = portfolio
+        self._money = money
         self._clock = clock
 
     async def facts(self) -> str:
@@ -67,6 +71,7 @@ class BriefingService:
             self._safe(self._tasks_line),
             self._safe(self._reminders_line),
             self._safe(self._portfolio_line),
+            self._safe(self._money_line),
             self._safe(self._news_line),
         )
         lines = [f"It is {now:%A %d %B}, {_clock_label(now)}."]
@@ -123,6 +128,16 @@ class BriefingService:
             return ""
         return describe_portfolio(overview)
 
+    async def _money_line(self) -> str:
+        if self._money is None:
+            return ""
+        overview = await self._money.overview()
+        due = overview.due_within(7)
+        if not due:
+            return ""
+        items = "; ".join(payment_text(p, overview.currency, overview.today) for p in due[:5])
+        return f"Payments due this week: {items}."
+
     async def _news_line(self) -> str:
         if self._news is None:
             return ""
@@ -143,7 +158,8 @@ class BriefingService:
 BRIEFING_INSTRUCTION = (
     "Give me my briefing now. Using only these facts, speak a warm, natural briefing of at most "
     "seven sentences: greet me for the time of day, then weather, schedule, tasks and reminders, "
-    "my stock portfolio in one sentence, and finish with the headlines in one sentence. "
+    "my stock portfolio in one sentence, bills due this week in one sentence, and finish with "
+    "the headlines in one sentence. "
     "Skip anything missing.\n\nFacts:\n"
 )
 

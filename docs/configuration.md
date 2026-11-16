@@ -101,6 +101,8 @@ Requests from other devices (anything relayed by `tailscale serve`, or not from 
 | `JARVIS_WEB_READ_PAGES`        | `true`             | Read the top two result pages, not just snippets   |
 | `JARVIS_DOCUMENTS_DIR`         | (empty)            | Documents folder (PDF, Word, Excel, CSV, notes); **live** in Settings → Knowledge |
 | `JARVIS_DOCUMENTS_RESCAN_S`    | `300`              | How often to look for new or changed files (`0` = only at start) |
+| `JARVIS_BILL_REMINDER_DAYS`    | `3`                | Speak bill reminders this many days ahead (`0` = off); **live** in Settings → Knowledge ([guide](guides/money.md)) |
+| `JARVIS_BILL_REMINDER_POLL_S`  | `1800`             | How often due dates are checked (seconds)          |
 | `JARVIS_MCP_SERVERS`           | `[]`               | JSON list, see the MCP guide                       |
 | `JARVIS_REMINDER_POLL_S`       | `5`                | Reminder check interval                            |
 | `JARVIS_TIMER_POLL_S`          | `1`                | Timer check interval (seconds)                     |

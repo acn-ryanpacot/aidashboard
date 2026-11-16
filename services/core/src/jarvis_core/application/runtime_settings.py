@@ -58,6 +58,7 @@ class RuntimeSettings(BaseModel):
     portfolio_feed_url: str = Field(default="", max_length=200)
     # Knowledge
     documents_dir: str = Field(default="", max_length=400)
+    bill_reminder_days: int = Field(default=3, ge=0, le=14)
 
     @field_validator("documents_dir")
     @classmethod

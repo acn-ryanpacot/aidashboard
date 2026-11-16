@@ -15,6 +15,7 @@ from jarvis_core.application.briefing import BriefingService
 from jarvis_core.application.hub import NOTIFICATIONS_TOPIC
 from jarvis_core.application.information import NewsService, ScheduleService
 from jarvis_core.application.memory import MemoryService
+from jarvis_core.application.money import HORIZON_DAYS, MoneyService, describe_money
 from jarvis_core.application.portfolio import (
     PortfolioOverview,
     PortfolioService,
@@ -810,6 +811,36 @@ def stock_alert_tools(alerts: StockAlertService) -> list[Tool]:
             ),
             "Checking your stock alerts",
             get_stock_alerts,
+        )
+    ]
+
+
+def money_tools(money: MoneyService) -> list[Tool]:
+    """``get_bills_and_debts``: what's owed and what's due, from the user's spreadsheets."""
+
+    async def get_bills_and_debts(args: Mapping[str, Any]) -> str:
+        days = number_arg(args, "days")
+        window = 14 if days is None else max(1, min(int(days), HORIZON_DAYS))
+        return describe_money(await money.overview(), window)
+
+    return [
+        Tool(
+            ToolSpec(
+                "get_bills_and_debts",
+                "The user's debts (total owed, monthly payments, largest) and bills or "
+                "payments coming due, with dates, from their own spreadsheets.",
+                schema(
+                    {
+                        "days": {
+                            "type": "integer",
+                            "description": "Look this many days ahead (default 14).",
+                        }
+                    },
+                    [],
+                ),
+            ),
+            "Checking your bills",
+            get_bills_and_debts,
         )
     ]
 

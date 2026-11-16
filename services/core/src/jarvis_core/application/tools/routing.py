@@ -232,7 +232,7 @@ BUILTIN_GROUPS: tuple[ToolGroup, ...] = (
     ToolGroup(
         "documents",
         "The user's own files: notes, resume, bills, debts, PDFs and spreadsheets.",
-        ("search_documents", "read_spreadsheet", "list_documents"),
+        ("search_documents", "read_spreadsheet", "list_documents", "get_bills_and_debts"),
         (
             r"\bmy (notes|documents|docs|files|journal|folder)\b",
             r"\bdid i write\b",
@@ -241,6 +241,7 @@ BUILTIN_GROUPS: tuple[ToolGroup, ...] = (
             r"\b(bills?|debts?|loans?|credit cards?|statements?|payslips?|receipts?|budget)\b",
             r"\b(how much|what) do i (owe|pay|spend|earn)\b",
             r"\bi owe\b",
+            r"\b(due|overdue|payments?|pay (this|next) (week|month))\b",
             r"\b(spreadsheets?|excel|csv|pdfs?|word files?)\b",
             r"\bmy (insurance|policy|contract|lease|salary)\b",
             r"\babout me\b",

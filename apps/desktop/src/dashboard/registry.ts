@@ -13,6 +13,7 @@ import clock from '../widgets/clock';
 import conversation from '../widgets/conversation';
 import coreLink from '../widgets/core-link';
 import memories from '../widgets/memories';
+import money from '../widgets/money';
 import news from '../widgets/news';
 import portfolio from '../widgets/portfolio';
 import schedule from '../widgets/schedule';
@@ -30,6 +31,7 @@ export const widgetRegistry = new WidgetRegistry()
   .register(timers)
   .register(news)
   .register(portfolio)
+  .register(money)
   .register(memories)
   .register(system)
   .register(coreLink);

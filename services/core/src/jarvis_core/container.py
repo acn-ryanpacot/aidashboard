@@ -38,6 +38,7 @@ from jarvis_core.application.greeting import GreetingCache
 from jarvis_core.application.hub import DOCUMENTS_TOPIC, SessionHub
 from jarvis_core.application.information import NewsService, ScheduleService, WeatherService
 from jarvis_core.application.memory import MemoryService
+from jarvis_core.application.money import MONEY_TOPIC, BillReminderScheduler, MoneyService
 from jarvis_core.application.persona import Persona, PersonaStyle, describe_abilities
 from jarvis_core.application.portfolio import PortfolioService
 from jarvis_core.application.reminders import ReminderScheduler
@@ -113,6 +114,7 @@ def runtime_defaults(s: Settings) -> RuntimeSettings:
         calendar_urls=list(s.calendar_urls),
         portfolio_feed_url=s.portfolio_feed_url,
         documents_dir=s.documents_dir,
+        bill_reminder_days=s.bill_reminder_days,
     )
 
 
@@ -147,6 +149,7 @@ class Container:
     news: NewsService | None = None
     schedule: ScheduleService | None = None
     portfolio: PortfolioService | None = None
+    money: MoneyService | None = None
     stock_alerts: StockAlertService | None = None
     remote: RemoteAccessProbe | None = None
     documents: DocumentLibrary | None = None
@@ -344,6 +347,7 @@ def assemble(
     alert_service = (
         StockAlertService(stock_alerts, preferences) if stock_alerts is not None else None
     )
+    money = MoneyService(library) if library is not None else None
     briefing = BriefingService(
         tasks=tasks,
         reminders=reminders,
@@ -351,6 +355,7 @@ def assemble(
         schedule=schedule_service,
         news=news_service,
         portfolio=portfolio_service,
+        money=money,
     )
 
     tools = ToolRegistry()
@@ -380,6 +385,8 @@ def assemble(
             tools.extend(builtin.portfolio_tools(portfolio_service))
         if alert_service is not None:
             tools.extend(builtin.stock_alert_tools(alert_service))
+        if money is not None:
+            tools.extend(builtin.money_tools(money))
         tools.extend(builtin.briefing_tools(briefing))
 
     router = (
@@ -411,6 +418,19 @@ def assemble(
     )
     timer_scheduler = TimerScheduler(
         timers, hub, user_name=persona.user_name, poll_s=s.timer_poll_s
+    )
+    bill_scheduler = (
+        BillReminderScheduler(
+            money,
+            hub,
+            preferences,
+            days_ahead=lambda: runtime.current.bill_reminder_days,
+            has_listeners=lambda: len(hub) > 0,
+            user_name=persona.user_name,
+            poll_s=s.bill_reminder_poll_s,
+        )
+        if money is not None
+        else None
     )
     alert_scheduler = (
         StockAlertScheduler(
@@ -476,6 +496,7 @@ def assemble(
         schedule=schedule_service,
         portfolio=portfolio_service,
         stock_alerts=alert_service,
+        money=money,
         remote=remote,
         documents=library,
         web_search=getattr(web_search, "label", type(web_search).__name__) if web_search else "",
@@ -488,6 +509,7 @@ def assemble(
             timer_scheduler,
             briefing_scheduler,
             *([alert_scheduler] if alert_scheduler is not None else []),
+            *([bill_scheduler] if bill_scheduler is not None else []),
         ],
         warmables=present,
         closables=[*present, *tool_sources],
@@ -505,6 +527,8 @@ def assemble(
             timer_scheduler.user_name = new.user_name
             if alert_scheduler is not None:
                 alert_scheduler.user_name = new.user_name
+            if bill_scheduler is not None:
+                bill_scheduler.user_name = new.user_name
         if (new.tts_voice, new.tts_speed) != (old.tts_voice, old.tts_speed) and isinstance(
             tts, SupportsVoiceConfig
         ):
@@ -533,7 +557,14 @@ def assemble(
 
     runtime.on_change(apply_settings)
     if library is not None:
-        library.on_change(lambda: hub.data_changed(DOCUMENTS_TOPIC))
+
+        async def documents_changed() -> None:
+            if money is not None:
+                money.invalidate()
+                await hub.data_changed(MONEY_TOPIC)
+            await hub.data_changed(DOCUMENTS_TOPIC)
+
+        library.on_change(documents_changed)
     return container
 
 

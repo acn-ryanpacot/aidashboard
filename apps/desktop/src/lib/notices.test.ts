@@ -8,6 +8,7 @@ describe('notice labels', () => {
     expect(noticeLabel('alert')).toBe('Stock alert');
     expect(noticeLabel('briefing')).toBe('Briefing');
     expect(noticeLabel('reminder')).toBe('Reminder');
+    expect(noticeLabel('bill')).toBe('Bill reminder');
     expect(noticeLabel('app-push')).toBe('Notice');
     expect(noticeLabel(undefined)).toBe('Notice');
   });

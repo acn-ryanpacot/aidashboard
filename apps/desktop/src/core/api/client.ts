@@ -80,6 +80,8 @@ export interface RuntimeSettings {
   readonly portfolio_feed_url: string;
   /** The documents folder Jarvis reads ("" = none). Only changeable on the PC. */
   readonly documents_dir: string;
+  /** Speak bill reminders this many days before they're due (0 = off). */
+  readonly bill_reminder_days: number;
 }
 
 export interface SettingsResponse {
@@ -281,6 +283,45 @@ export interface KnowledgeStatus {
   };
 }
 
+/** A debt from the user's debts spreadsheet. */
+export interface Debt {
+  readonly name: string;
+  readonly balance: number;
+  readonly monthly: number | null;
+  /** Percent, e.g. 3.5. */
+  readonly rate: number | null;
+  readonly file: string;
+}
+
+/** A bill or a debt's payment with its next due date. */
+export interface Payment {
+  readonly name: string;
+  readonly amount: number | null;
+  /** `YYYY-MM-DD`. */
+  readonly due: string;
+  /** Days from today; negative = overdue. */
+  readonly days: number;
+  readonly kind: 'bill' | 'debt';
+  readonly recurring: boolean;
+  readonly file: string;
+}
+
+/** `GET /api/money`: the Money widget's data, from the user's own spreadsheets. */
+export interface MoneyResponse {
+  readonly status: 'ok' | 'no_folder' | 'no_sheets' | 'disabled';
+  readonly today: string;
+  /** "₱", "$"… as written in the sheets. */
+  readonly currency: string;
+  readonly total_owed: number;
+  readonly monthly_total: number;
+  /** Largest balance first. */
+  readonly debts: readonly Debt[];
+  /** Soonest first, up to a month ahead (overdue first). */
+  readonly payments: readonly Payment[];
+  readonly sources: readonly string[];
+  readonly reminder_days: number;
+}
+
 /** Raised for non-2xx responses; `message` carries the server's explanation. */
 export class ApiError extends Error {
   override readonly name = 'ApiError';
@@ -366,6 +407,7 @@ export const coreApi = {
   revokeDevice: (id: number) => request<undefined>(`/api/devices/${id}`, { method: 'DELETE' }),
   getRemoteStatus: () => request<RemoteStatus>('/api/devices/remote'),
 
+  getMoney: () => request<MoneyResponse>('/api/money'),
   getKnowledge: () => request<KnowledgeStatus>('/api/knowledge'),
   reindexDocuments: () => request<DocumentsStatus>('/api/documents/reindex', { method: 'POST' }),
 };

@@ -11,6 +11,7 @@ const NOTICE_LABEL: Partial<Record<string, string>> = {
   timer: 'Timer',
   alert: 'Stock alert',
   briefing: 'Briefing',
+  bill: 'Bill reminder',
 };
 
 /** "Timer", "Stock alert"… ("Notice" for kinds this UI doesn't know yet). */
